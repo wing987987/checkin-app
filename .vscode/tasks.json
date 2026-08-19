@@ -1,0 +1,15 @@
+﻿{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "adb reverse 8082",
+            "type": "shell",
+            "command": "C:\\Users\\wing9\\AppData\\Local\\Android\\Sdk\\platform-tools\\adb.exe reverse tcp:8082 tcp:8082",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "close": false
+            }
+        }
+    ]
+}
