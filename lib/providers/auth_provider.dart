@@ -12,34 +12,42 @@ class AuthProvider extends ChangeNotifier {
   UserInfo? _currentUser;
   String? _token;
   bool _isLoading = false;
+  bool _isInitialized = false;
   String? _error;
 
   UserInfo? get currentUser => _currentUser;
   String? get token => _token;
   bool get isLoading => _isLoading;
+  bool get isInitialized => _isInitialized;
   String? get error => _error;
   bool get isLoggedIn => _token != null;
 
   String? get role => _currentUser?.role;
-  bool get isAdmin => _currentUser?.role == 'admin';
+  bool get isSupervisor => _currentUser?.role == 'supervisor';
 
   /// 启动时恢复登录态
   Future<void> loadToken() async {
     _isLoading = true;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('token');
-    if (_token != null) {
-      DioClient.instance.updateToken(_token);
-      final result = await AuthService.me();
-      if (result.isSuccess && result.data != null) {
-        _currentUser = result.data;
-      } else {
-        await _clearToken();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedToken = prefs.getString('token');
+      _token = savedToken != null && savedToken.trim().isNotEmpty
+          ? savedToken
+          : null;
+      if (_token != null) {
+        DioClient.instance.updateToken(_token);
+        final result = await AuthService.me();
+        if (result.isSuccess && result.data != null) {
+          _currentUser = result.data;
+        } else {
+          await _clearToken();
+        }
       }
+    } finally {
+      _isLoading = false;
+      _isInitialized = true;
+      notifyListeners();
     }
-    _isLoading = false;
-    notifyListeners();
   }
 
   Future<bool> login(String username, String password) async {
@@ -49,19 +57,17 @@ class AuthProvider extends ChangeNotifier {
     final result = await AuthService.login(username, password);
     if (result.isSuccess && result.data != null) {
       final data = result.data!;
-      _token = data['token'] as String?;
+      _token = data.token;
+      _currentUser = data.user;
       DioClient.instance.updateToken(_token);
-      if (data['user'] != null) {
-        _currentUser = UserInfo.fromJson(data['user'] as Map<String, dynamic>);
-      }
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', _token ?? '');
+      await prefs.setString('token', _token!);
     } else {
       _error = result.message.isEmpty ? '登录失败' : result.message;
     }
     _isLoading = false;
     notifyListeners();
-    return result.isSuccess;
+    return result.isSuccess && _token != null && _currentUser != null;
   }
 
   Future<void> logout() async {

@@ -5,7 +5,7 @@ class UserInfo {
   final String? realName;
   final String? phone;
 
-  /// 角色：admin=主管理员，worker=工人
+  /// 角色：supervisor=项目主管，worker=工人
   final String role;
 
   UserInfo({

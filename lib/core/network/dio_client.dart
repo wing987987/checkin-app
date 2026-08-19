@@ -77,4 +77,8 @@ class DioClient {
   Future<Response> delete(String path) {
     return _dio.delete(path);
   }
+
+  Future<Response> upload(String path, FormData formData) {
+    return _dio.post(path, data: formData);
+  }
 }

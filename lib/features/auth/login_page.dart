@@ -25,16 +25,15 @@ class _LoginPageState extends State<LoginPage> {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
     if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请输入用户名和密码')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请输入用户名和密码')));
       return;
     }
     final auth = context.read<AuthProvider>();
     final success = await auth.login(username, password);
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(auth.error ?? '登录失败'),
-          backgroundColor: Colors.red));
+          content: Text(auth.error ?? '登录失败'), backgroundColor: Colors.red));
     }
   }
 
@@ -57,6 +56,19 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 4),
                 Text('当前环境: ${EnvConfig.instance.env}',
                     style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                if (EnvConfig.instance.showTestFeatures) ...[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: auth.isLoading
+                        ? null
+                        : () {
+                            _usernameController.text = 'supervisor';
+                            _passwordController.text = '123456';
+                          },
+                    icon: const Icon(Icons.science_outlined, size: 18),
+                    label: const Text('填入测试主管账号'),
+                  ),
+                ],
                 const SizedBox(height: 32),
                 TextField(
                   controller: _usernameController,

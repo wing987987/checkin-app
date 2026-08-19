@@ -48,9 +48,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    if (auth.isLoading) {
-      return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+    if (!auth.isInitialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return auth.isLoggedIn ? const HomePage() : const LoginPage();
   }

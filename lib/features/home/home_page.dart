@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/env_config.dart';
 import '../../providers/auth_provider.dart';
+import '../management/supervisor_home_page.dart';
+import '../worker/worker_home_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -9,6 +11,12 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    if (auth.isSupervisor) {
+      return const SupervisorHomePage();
+    }
+    if (auth.role == 'worker') {
+      return const WorkerHomePage();
+    }
     final user = auth.currentUser;
     return Scaffold(
       appBar: AppBar(
