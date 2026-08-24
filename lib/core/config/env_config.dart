@@ -26,6 +26,19 @@ class EnvConfig {
   /// debug 运行（本地 F5）始终可见；release 包按 ENV 判断，prod 包编译期剔除。
   bool get showTestFeatures => kDebugMode || !isProd;
 
+  /// OSM 公共瓦片地址保持可配置，便于服务方要求切换或生产环境更换供应商。
+  String get mapTileUrl => const String.fromEnvironment(
+        'MAP_TILE_URL',
+        defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      );
+
+  /// 稳定、可识别的客户端标识，不使用地图或网络库的默认 User-Agent。
+  String get mapUserAgent => const String.fromEnvironment(
+        'MAP_USER_AGENT',
+        defaultValue:
+            'ZhaoChenCheckIn/0.1 (+https://www.haipingmian.net; contact: wwt@haipingmian.net)',
+      );
+
   String _resolveBaseUrl() {
     switch (_env) {
       case 'prod':

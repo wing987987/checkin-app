@@ -1,8 +1,16 @@
+import 'dart:io';
+
+import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_cache/flutter_map_cache.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http_cache_file_store/http_cache_file_store.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/config/env_config.dart';
 import '../../services/management_service.dart';
 
 class ProjectLocationPickerPage extends StatefulWidget {
@@ -14,6 +22,7 @@ class ProjectLocationPickerPage extends StatefulWidget {
 }
 
 class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
+  static final Future<CacheStore> _tileCacheStore = _createTileCacheStore();
   final _nameController = TextEditingController();
   final _mapController = MapController();
 
@@ -23,6 +32,20 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
   bool _saving = false;
   bool _permissionPermanentlyDenied = false;
   String? _locationError;
+
+  static Future<CacheStore> _createTileCacheStore() async {
+    final directory = await getTemporaryDirectory();
+    return FileCacheStore(
+      '${directory.path}${Platform.pathSeparator}osm_map_tiles',
+    );
+  }
+
+  Future<void> _openOsmCopyright() async {
+    await launchUrl(
+      Uri.parse('https://www.openstreetmap.org/copyright'),
+      mode: LaunchMode.externalApplication,
+    );
+  }
 
   @override
   void initState() {
@@ -265,37 +288,52 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
         height: 330,
         child: Stack(
           children: [
-            FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _center!,
-                initialZoom: 17,
-                minZoom: 3,
-                maxZoom: 19,
-                onPositionChanged: (camera, hasGesture) {
-                  if (hasGesture && mounted) {
-                    setState(() => _center = camera.center);
-                  }
-                },
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.zhaochen.checkin',
-                ),
-                CircleLayer(
-                  circles: [
-                    CircleMarker(
-                      point: _center!,
-                      radius: _radius.toDouble(),
-                      useRadiusInMeter: true,
-                      color: Colors.green.withValues(alpha: 0.14),
-                      borderColor: Colors.green,
-                      borderStrokeWidth: 2,
+            FutureBuilder<CacheStore>(
+              future: _tileCacheStore,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _center!,
+                    initialZoom: 17,
+                    minZoom: 3,
+                    maxZoom: 19,
+                    onPositionChanged: (camera, hasGesture) {
+                      if (hasGesture && mounted) {
+                        setState(() => _center = camera.center);
+                      }
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: EnvConfig.instance.mapTileUrl,
+                      userAgentPackageName: EnvConfig.instance.mapUserAgent,
+                      tileProvider: CachedTileProvider(
+                        store: snapshot.data!,
+                        maxStale: const Duration(days: 7),
+                        headers: {
+                          'User-Agent': EnvConfig.instance.mapUserAgent,
+                        },
+                      ),
+                    ),
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: _center!,
+                          radius: _radius.toDouble(),
+                          useRadiusInMeter: true,
+                          color: Colors.green.withValues(alpha: 0.14),
+                          borderColor: Colors.green,
+                          borderStrokeWidth: 2,
+                        ),
+                      ],
                     ),
                   ],
-                ),
-              ],
+                );
+              },
             ),
             const IgnorePointer(
               child: Center(
@@ -332,12 +370,21 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
             Positioned(
               right: 6,
               bottom: 5,
-              child: DecoratedBox(
-                decoration: const BoxDecoration(color: Colors.white70),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  child: Text('© OpenStreetMap contributors',
-                      style: TextStyle(fontSize: 10, color: Colors.black87)),
+              child: Material(
+                color: Colors.white70,
+                child: InkWell(
+                  onTap: _openOsmCopyright,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Text(
+                      '© OpenStreetMap contributors',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

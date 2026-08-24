@@ -7,6 +7,9 @@ import '../services/auth_service.dart';
 class AuthProvider extends ChangeNotifier {
   AuthProvider() {
     DioClient.instance.onUnauthorized = _handleUnauthorized;
+    DioClient.instance.onTokenRefreshed = (token) {
+      _token = token;
+    };
   }
 
   UserInfo? _currentUser;
@@ -62,6 +65,7 @@ class AuthProvider extends ChangeNotifier {
       DioClient.instance.updateToken(_token);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('token', _token!);
+      await prefs.setString('refreshToken', data.refreshToken);
     } else {
       _error = result.message.isEmpty ? '登录失败' : result.message;
     }
@@ -81,6 +85,7 @@ class AuthProvider extends ChangeNotifier {
     DioClient.instance.updateToken(null);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
+    await prefs.remove('refreshToken');
   }
 
   void _handleUnauthorized() {
