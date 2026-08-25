@@ -2,17 +2,17 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "checkin-app (prod)",
-      "request": "launch",
-      "type": "dart",
-      "args": ["--flavor", "prod", "--dart-define=ENV=prod"],
-      "preLaunchTask": "adb reverse 8082"
-    },
-    {
-      "name": "checkin-app (staging)",
+      "name": "checkin-app (staging) - 默认本地测试",
       "request": "launch",
       "type": "dart",
       "args": ["--flavor", "staging", "--dart-define=ENV=test"],
+      "preLaunchTask": "adb reverse 8082"
+    },
+    {
+      "name": "checkin-app (prod) - 仅生产验证",
+      "request": "launch",
+      "type": "dart",
+      "args": ["--flavor", "prod", "--dart-define=ENV=prod"],
       "preLaunchTask": "adb reverse 8082"
     }
   ]

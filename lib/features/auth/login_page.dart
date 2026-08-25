@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/config/env_config.dart';
+import '../../core/config/demo_accounts.dart';
 import '../../providers/auth_provider.dart';
 
 class LoginPage extends StatefulWidget {
@@ -37,6 +38,15 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _quickLogin(DemoAccount account) async {
+    final auth = context.read<AuthProvider>();
+    final success = await auth.login(account.username, account.password);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(auth.error ?? '登录失败'), backgroundColor: Colors.red));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -58,15 +68,33 @@ class _LoginPageState extends State<LoginPage> {
                     style: TextStyle(fontSize: 12, color: Colors.grey[500])),
                 if (EnvConfig.instance.showTestFeatures) ...[
                   const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: auth.isLoading
-                        ? null
-                        : () {
-                            _usernameController.text = 'supervisor';
-                            _passwordController.text = '123456';
-                          },
-                    icon: const Icon(Icons.science_outlined, size: 18),
-                    label: const Text('填入测试主管账号'),
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.science_outlined, size: 18),
+                      SizedBox(width: 6),
+                      Text('测试环境快捷登录'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: DemoAccounts.accounts
+                        .map((account) => ActionChip(
+                              avatar: Icon(
+                                account.role == 'supervisor'
+                                    ? Icons.manage_accounts
+                                    : Icons.engineering,
+                                size: 17,
+                              ),
+                              label: Text(account.name),
+                              onPressed: auth.isLoading
+                                  ? null
+                                  : () => _quickLogin(account),
+                            ))
+                        .toList(),
                   ),
                 ],
                 const SizedBox(height: 32),

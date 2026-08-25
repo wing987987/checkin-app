@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/checkin_project.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/management_service.dart';
+import '../../core/widgets/test_account_switcher.dart';
 import 'project_location_picker_page.dart';
 import 'project_management_page.dart';
 
@@ -45,6 +46,7 @@ class _SupervisorHomePageState extends State<SupervisorHomePage> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('项目管理'), actions: [
+          const TestAccountSwitcher(),
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
           IconButton(
               onPressed: () => context.read<AuthProvider>().logout(),
@@ -72,23 +74,26 @@ class _SupervisorHomePageState extends State<SupervisorHomePage> {
                               title: Text(p.name),
                               subtitle: Text('打卡范围 ${p.fenceRadius} 米'),
                               trailing: const Icon(Icons.chevron_right),
-                              onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          ProjectManagementPage(project: p))),
+                              onTap: () async {
+                                await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            ProjectManagementPage(project: p)));
+                                if (mounted) _load();
+                              },
                             );
                           },
                         )),
       );
 
   Future<void> _createProject() async {
-    final created = await Navigator.push<bool>(
+    final created = await Navigator.push<CheckinProject>(
       context,
       MaterialPageRoute(
         builder: (_) => const ProjectLocationPickerPage(),
       ),
     );
-    if (created == true && mounted) _load();
+    if (created != null && mounted) _load();
   }
 }

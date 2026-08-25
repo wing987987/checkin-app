@@ -23,6 +23,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isInitialized => _isInitialized;
   String? get error => _error;
+  String? get username => _currentUser?.username;
   bool get isLoggedIn => _token != null;
 
   String? get role => _currentUser?.role;

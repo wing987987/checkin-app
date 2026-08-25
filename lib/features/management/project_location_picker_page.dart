@@ -12,9 +12,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/env_config.dart';
 import '../../services/management_service.dart';
+import '../../models/checkin_project.dart';
 
 class ProjectLocationPickerPage extends StatefulWidget {
-  const ProjectLocationPickerPage({super.key});
+  final CheckinProject? project;
+  const ProjectLocationPickerPage({super.key, this.project});
 
   @override
   State<ProjectLocationPickerPage> createState() =>
@@ -50,7 +52,15 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
   @override
   void initState() {
     super.initState();
-    _locate();
+    final existing = widget.project;
+    if (existing == null) {
+      _locate();
+    } else {
+      _nameController.text = existing.name;
+      _center = LatLng(existing.gpsLat, existing.gpsLng);
+      _radius = existing.fenceRadius;
+      _locating = false;
+    }
   }
 
   @override
@@ -126,16 +136,19 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
 
     setState(() => _saving = true);
     try {
-      final result = await ManagementService.createProject({
+      final data = {
         'name': name,
         'gpsLat': center.latitude,
         'gpsLng': center.longitude,
         'fenceRadius': _radius,
-        'status': 'active',
-      });
+        'status': widget.project?.status ?? 'active',
+      };
+      final result = widget.project == null
+          ? await ManagementService.createProject(data)
+          : await ManagementService.updateProject(widget.project!.id, data);
       if (!mounted) return;
       if (result.isSuccess) {
-        Navigator.pop(context, true);
+        Navigator.pop(context, result.data);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result.message), backgroundColor: Colors.red),
@@ -156,7 +169,7 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('新建项目')),
+      appBar: AppBar(title: Text(widget.project == null ? '新建项目' : '编辑项目定位')),
       body: SafeArea(
         child: Column(
           children: [
@@ -231,7 +244,11 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.add_location_alt),
-                  label: Text(_saving ? '正在创建…' : '创建项目'),
+                  label: Text(_saving
+                      ? '正在保存…'
+                      : widget.project == null
+                          ? '创建项目'
+                          : '保存项目定位'),
                 ),
               ),
             ),

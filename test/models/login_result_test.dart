@@ -5,6 +5,7 @@ void main() {
   test('parses the flat checkin login response', () {
     final result = LoginResult.fromJson({
       'token': 'token-value',
+      'refreshToken': 'refresh-token-value',
       'userId': 7,
       'username': 'worker01',
       'realName': '张三',
@@ -13,6 +14,7 @@ void main() {
     });
 
     expect(result.token, 'token-value');
+    expect(result.refreshToken, 'refresh-token-value');
     expect(result.user.id, 7);
     expect(result.user.username, 'worker01');
     expect(result.user.role, 'worker');

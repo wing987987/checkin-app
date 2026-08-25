@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../models/attendance_anomaly.dart';
 import '../../models/checkin_project.dart';
 import '../../services/management_service.dart';
+import '../../core/models/api_result.dart';
 
 class AnomalyListPage extends StatefulWidget {
   final CheckinProject project;
@@ -66,8 +67,16 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
           subtitle: Text(
               '${item.attendanceDate}  ${item.teamName}/${item.shiftName}\n${item.anomalyMessage}${item.resolved ? '\n已处理${item.corrected ? '（修正）' : ''}：${item.latestReason ?? ''}' : ''}'),
           isThreeLine: true,
-          trailing: item.resolved ? null : const Icon(Icons.chevron_right),
-          onTap: item.resolved ? null : () => _resolve(item)));
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (item.photoUrl != null && item.photoUrl!.isNotEmpty)
+              IconButton(
+                  tooltip: '查看打卡照片',
+                  onPressed: () => _showPhoto(item),
+                  icon: const Icon(Icons.photo_camera_outlined)),
+            const Icon(Icons.chevron_right),
+          ]),
+          onTap:
+              item.resolved ? () => _showHistory(item) : () => _resolve(item)));
 
   Future<void> _resolve(AttendanceAnomaly item) async {
     final action = await showDialog<String>(
@@ -85,6 +94,9 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                   OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, 'confirm'),
                       child: const Text('确认原记录有效')),
+                  OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, 'void'),
+                      child: const Text('作废误打')),
                   FilledButton(
                       onPressed: () => Navigator.pop(ctx, 'correct'),
                       child: const Text('修正时间'))
@@ -96,7 +108,11 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         context: context,
         builder: (ctx) => StatefulBuilder(
             builder: (_, setLocal) => AlertDialog(
-                    title: Text(action == 'correct' ? '修正打卡时间' : '确认原记录有效'),
+                    title: Text(action == 'correct'
+                        ? '修正打卡时间'
+                        : action == 'void'
+                            ? '作废误打记录'
+                            : '确认原记录有效'),
                     content: Column(mainAxisSize: MainAxisSize.min, children: [
                       if (action == 'correct')
                         ListTile(
@@ -152,5 +168,88 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                           child: const Text('确认处理'))
                     ])));
     if (ok == true) _load();
+  }
+
+  Future<void> _showHistory(AttendanceAnomaly item) async {
+    final result = await ManagementService.adjustmentHistory(item.recordId);
+    if (!mounted) return;
+    final history = result.data ?? const [];
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('调整历史'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: history.isEmpty
+              ? const Text('暂无调整记录')
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: history.length,
+                  itemBuilder: (_, index) {
+                    final row = history[index];
+                    final action = row['action'];
+                    final label = action == 'confirm'
+                        ? '确认有效'
+                        : action == 'correct'
+                            ? '修正时间'
+                            : action == 'void'
+                                ? '作废记录'
+                                : '$action';
+                    return ListTile(
+                      leading: const Icon(Icons.history),
+                      title: Text(label),
+                      subtitle: Text(
+                          '${row['createTime'] ?? ''}\n原因：${row['reason'] ?? ''}'),
+                      isThreeLine: true,
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showPhoto(AttendanceAnomaly item) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${item.workerName} · ${item.checkpointName}'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: FutureBuilder<ApiResult<String>>(
+            future: ManagementService.anomalyPhotoViewUrl(item.recordId),
+            builder: (_, snapshot) {
+              final url = snapshot.data?.data;
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const SizedBox(
+                    height: 240,
+                    child: Center(child: CircularProgressIndicator()));
+              }
+              if (url == null) {
+                return SizedBox(
+                    height: 120,
+                    child: Center(
+                        child: Text(snapshot.data?.message ?? '照片加载失败')));
+              }
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(url,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const SizedBox(
+                        height: 120, child: Center(child: Text('照片加载失败')))),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))
+        ],
+      ),
+    );
   }
 }
