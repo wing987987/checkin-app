@@ -26,11 +26,19 @@ class EnvConfig {
   /// debug 运行（本地 F5）始终可见；release 包按 ENV 判断，prod 包编译期剔除。
   bool get showTestFeatures => kDebugMode || !isProd;
 
-  /// OSM 公共瓦片地址保持可配置，便于服务方要求切换或生产环境更换供应商。
-  String get mapTileUrl => const String.fromEnvironment(
-        'MAP_TILE_URL',
-        defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  /// 天地图密钥可在打包时用 --dart-define=TIANDITU_KEY=... 覆盖。
+  String get tiandituKey => const String.fromEnvironment(
+        'TIANDITU_KEY',
+        defaultValue: 'f84c473276ad381a936c3d2e89c1cf2d',
       );
+
+  /// 天地图 Web 墨卡托矢量底图和中文注记必须叠加使用。
+  String get mapBaseTileUrl =>
+      'https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=$tiandituKey';
+  String get mapLabelTileUrl =>
+      'https://t{s}.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=$tiandituKey';
+  List<String> get mapSubdomains =>
+      const ['0', '1', '2', '3', '4', '5', '6', '7'];
 
   /// 稳定、可识别的客户端标识，不使用地图或网络库的默认 User-Agent。
   String get mapUserAgent => const String.fromEnvironment(

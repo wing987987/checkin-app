@@ -12,10 +12,10 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     if (auth.isSupervisor) {
-      return const SupervisorHomePage();
+      return SupervisorHomePage(key: ValueKey(auth.username));
     }
     if (auth.role == 'worker') {
-      return const WorkerHomePage();
+      return WorkerHomePage(key: ValueKey(auth.username));
     }
     final user = auth.currentUser;
     return Scaffold(

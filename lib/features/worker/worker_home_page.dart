@@ -12,6 +12,11 @@ import 'worker_report_page.dart';
 import '../../core/widgets/test_account_switcher.dart';
 import '../../core/models/api_result.dart';
 import '../../core/config/env_config.dart';
+import '../../core/widgets/zoomable_network_image.dart';
+import '../../core/widgets/user_account_menu.dart';
+import '../../core/widgets/dialog_scroll_view.dart';
+import 'worker_location_map_page.dart';
+import 'package:latlong2/latlong.dart';
 
 class _TestClockOptions {
   final DateTime clockTime;
@@ -62,18 +67,21 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('今日打卡'), actions: [
-          const TestAccountSwitcher(),
-          IconButton(
-              tooltip: '月度考勤',
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const WorkerReportPage())),
-              icon: const Icon(Icons.assessment)),
-          IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
-          IconButton(
-              onPressed: () => context.read<AuthProvider>().logout(),
-              icon: const Icon(Icons.logout))
-        ]),
+        appBar: AppBar(
+            leadingWidth: 160,
+            leading: const UserAccountMenu(),
+            title: const Text('今日打卡'),
+            actions: [
+              const TestAccountSwitcher(),
+              IconButton(
+                  tooltip: '考勤统计',
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const WorkerReportPage())),
+                  icon: const Icon(Icons.assessment)),
+              IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+            ]),
         body: loading
             ? const Center(child: CircularProgressIndicator())
             : error != null
@@ -136,7 +144,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
           }),
           const SizedBox(height: 20),
           FilledButton.icon(
-              onPressed: clocking ? null : _clock,
+              onPressed: clocking ? null : () => _clock(),
               icon: clocking
                   ? const SizedBox(
                       width: 18,
@@ -144,6 +152,21 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.camera_alt),
               label: Text(clocking ? (clockingStatus ?? '正在提交…') : '定位并拍照打卡')),
+          if (EnvConfig.instance.showTestFeatures ||
+              value.overtimeAvailable) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: clocking ? null : () => _clock(overtime: true),
+              icon: const Icon(Icons.more_time),
+              label: Text(_overtimeButtonText(value)),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text('首次为加班开始，后续每次打卡都会更新加班结束时间',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey)),
+            ),
+          ],
         ]));
   }
 
@@ -152,46 +175,71 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
     final distance = previewDistance;
     final inside = distance != null && distance <= value.fenceRadius;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(position == null
-                ? Icons.location_searching
-                : inside
-                    ? Icons.location_on
-                    : Icons.location_off),
-            const SizedBox(width: 8),
-            Expanded(
-                child: Text('现场定位',
-                    style: Theme.of(context).textTheme.titleMedium)),
-            TextButton.icon(
-                onPressed: checkingLocation ? null : _checkLocation,
-                icon: checkingLocation
-                    ? const SizedBox(
-                        width: 15,
-                        height: 15,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.refresh),
-                label: Text(position == null ? '检查定位' : '刷新')),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: checkingLocation ? null : _openLocationMap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(position == null
+                  ? Icons.location_searching
+                  : inside
+                      ? Icons.location_on
+                      : Icons.location_off),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: Text('现场定位',
+                      style: Theme.of(context).textTheme.titleMedium)),
+              TextButton.icon(
+                  onPressed: checkingLocation ? null : _checkLocation,
+                  icon: checkingLocation
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                  label: Text(position == null ? '检查定位' : '刷新')),
+            ]),
+            if (previewLocationError != null)
+              Text(previewLocationError!,
+                  style: const TextStyle(color: Colors.red))
+            else if (position == null)
+              const Text('打卡前可先检查定位精度和项目距离')
+            else ...[
+              Text('定位精度：约 ±${position.accuracy.toStringAsFixed(0)} 米'),
+              Text('距项目中心：约 ${distance!.round()} 米'),
+              const SizedBox(height: 4),
+              Text(
+                inside ? '当前在项目打卡范围内' : '当前在围栏外，提交会产生异常',
+                style: TextStyle(
+                    color: inside ? Colors.green : Colors.orange,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
           ]),
-          if (previewLocationError != null)
-            Text(previewLocationError!,
-                style: const TextStyle(color: Colors.red))
-          else if (position == null)
-            const Text('打卡前可先检查定位精度和项目距离')
-          else ...[
-            Text('定位精度：约 ±${position.accuracy.toStringAsFixed(0)} 米'),
-            Text('距项目中心：约 ${distance!.round()} 米'),
-            const SizedBox(height: 4),
-            Text(
-              inside ? '当前在项目打卡范围内' : '当前在围栏外，提交会产生异常',
-              style: TextStyle(
-                  color: inside ? Colors.green : Colors.orange,
-                  fontWeight: FontWeight.w600),
-            ),
-          ],
-        ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLocationMap() async {
+    await _checkLocation();
+    if (!mounted || previewPosition == null || previewDistance == null) return;
+    final value = schedule!;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WorkerLocationMapPage(
+          current:
+              LatLng(previewPosition!.latitude, previewPosition!.longitude),
+          target: LatLng(value.gpsLat, value.gpsLng),
+          distanceMeters: previewDistance!,
+          accuracyMeters: previewPosition!.accuracy,
+          fenceRadius: value.fenceRadius,
+          projectName: value.projectName,
+        ),
       ),
     );
   }
@@ -228,7 +276,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(checkpoint.name),
-        content: SingleChildScrollView(
+        content: DialogScrollView(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('服务器时间：${record.serverTime}'),
@@ -249,13 +297,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                         height: 160,
                         child: Center(child: CircularProgressIndicator()));
                   }
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(url,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox(
-                            height: 100, child: Center(child: Text('照片加载失败')))),
-                  );
+                  return ZoomableNetworkImage(url: url);
                 },
               ),
             ],
@@ -282,11 +324,23 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       throw Exception('需要定位权限才能打卡');
     }
     return Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 15)));
+        locationSettings: AndroidSettings(
+            accuracy: LocationAccuracy.high,
+            forceLocationManager: true,
+            timeLimit: Duration(seconds: 15)));
   }
 
-  Future<void> _clock() async {
+  String _overtimeButtonText(MySchedule value) {
+    final count = _overtimeClockCount(value);
+    if (count == 0) return '加班打卡（开始）';
+    return '加班打卡（更新结束时间）';
+  }
+
+  int _overtimeClockCount(MySchedule value) => value.records
+      .where((record) => record.checkpointCode.startsWith('overtime_'))
+      .length;
+
+  Future<void> _clock({bool overtime = false}) async {
     final value = schedule!;
     final user = context.read<AuthProvider>().currentUser;
     String? sourcePhotoPath;
@@ -298,15 +352,15 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       if (EnvConfig.instance.showTestFeatures && testOptions == null) return;
       setState(() {
         clocking = true;
-        clockingStatus =
-            testOptions == null ? '正在定位…' : '正在生成测试定位…';
+        clockingStatus = testOptions == null ? '正在定位…' : '正在生成测试定位…';
       });
       final position =
           testOptions == null ? await _getHighAccuracyPosition() : null;
       final latitude = testOptions == null
           ? position!.latitude
           : value.gpsLat + testOptions.offsetMeters / 111320.0;
-      final longitude = testOptions == null ? position!.longitude : value.gpsLng;
+      final longitude =
+          testOptions == null ? position!.longitude : value.gpsLng;
       final accuracy = testOptions == null ? position!.accuracy : 0.0;
       final distance = Geolocator.distanceBetween(
           latitude, longitude, value.gpsLat, value.gpsLng);
@@ -347,6 +401,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       setState(() => clockingStatus = '正在添加水印…');
       final path =
           await WatermarkUtils.addClockWatermark(await photo.readAsBytes(), [
+        overtime ? '加班打卡' : '班次打卡',
         value.projectName,
         user?.realName ?? user?.username ?? '',
         DateFormat('yyyy-MM-dd HH:mm:ss').format(now),
@@ -361,14 +416,17 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       if (!uploaded.isSuccess || uploaded.data == null) {
         throw Exception(uploaded.message);
       }
-      final result = await WorkerService.clock({
+      final payload = {
         'requestId': '${now.microsecondsSinceEpoch}-${user?.id ?? 0}',
         'gpsLat': latitude,
         'gpsLng': longitude,
         'gpsAccuracy': accuracy,
         'clientTime': now.toIso8601String(),
         'photoUrl': uploaded.data
-      });
+      };
+      final result = overtime
+          ? await WorkerService.overtimeClock(payload)
+          : await WorkerService.clock(payload);
       if (!result.isSuccess) {
         throw Exception(result.message);
       }
@@ -377,7 +435,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(result.data?['anomalyType'] == null
-                ? '打卡成功'
+                ? overtime
+                    ? '加班打卡成功'
+                    : '打卡成功'
                 : '打卡已记录，存在异常，等待主管处理')));
         await _load();
       }
@@ -403,7 +463,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
 
   Future<_TestClockOptions?> _showTestClockOptions() async {
     var selected = DateTime.now();
-    final offsetController = TextEditingController(text: '0');
+    var offsetText = '0';
     final result = await showDialog<_TestClockOptions>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) {
@@ -431,8 +491,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
               trailing: const Icon(Icons.edit_calendar),
               onTap: chooseTime,
             ),
-            TextField(
-              controller: offsetController,
+            TextFormField(
+              initialValue: offsetText,
+              onChanged: (value) => offsetText = value,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
@@ -447,7 +508,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                 onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
             FilledButton(
               onPressed: () {
-                final offset = double.tryParse(offsetController.text.trim());
+                final offset = double.tryParse(offsetText.trim());
                 if (offset == null || offset < 0 || offset > 100000) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                       const SnackBar(content: Text('请输入 0～100000 米的有效距离')));
@@ -461,7 +522,6 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         );
       }),
     );
-    offsetController.dispose();
     return result;
   }
 

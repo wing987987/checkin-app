@@ -4,6 +4,7 @@ import '../../models/attendance_anomaly.dart';
 import '../../models/checkin_project.dart';
 import '../../services/management_service.dart';
 import '../../core/models/api_result.dart';
+import '../../core/widgets/zoomable_network_image.dart';
 
 class AnomalyListPage extends StatefulWidget {
   final CheckinProject project;
@@ -235,13 +236,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                     child: Center(
                         child: Text(snapshot.data?.message ?? '照片加载失败')));
               }
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(url,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const SizedBox(
-                        height: 120, child: Center(child: Text('照片加载失败')))),
-              );
+              return ZoomableNetworkImage(url: url);
             },
           ),
         ),

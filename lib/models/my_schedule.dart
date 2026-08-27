@@ -23,6 +23,8 @@ class ClockStatus {
   final int id;
   final int checkpointId;
   final String serverTime;
+  final String checkpointCode;
+  final String checkpointName;
   final String? anomalyType;
   final bool countable;
   final double? gpsAccuracy;
@@ -32,6 +34,8 @@ class ClockStatus {
       {required this.id,
       required this.checkpointId,
       required this.serverTime,
+      required this.checkpointCode,
+      required this.checkpointName,
       this.anomalyType,
       required this.countable,
       this.gpsAccuracy,
@@ -41,6 +45,8 @@ class ClockStatus {
       id: json['id'] as int,
       checkpointId: json['checkpointId'] as int,
       serverTime: json['serverTime'] as String? ?? '',
+      checkpointCode: json['checkpointCode'] as String? ?? '',
+      checkpointName: json['checkpointName'] as String? ?? '',
       anomalyType: json['anomalyType'] as String?,
       countable: json['countable'] == 1,
       gpsAccuracy: (json['gpsAccuracy'] as num?)?.toDouble(),
@@ -57,6 +63,9 @@ class MySchedule {
   final String teamName;
   final String shiftName;
   final String shiftType;
+  final String startTime;
+  final String endTime;
+  final bool overtimeAvailable;
   final String attendanceDate;
   final List<ScheduleCheckpoint> checkpoints;
   final List<ClockStatus> records;
@@ -69,6 +78,9 @@ class MySchedule {
       required this.teamName,
       required this.shiftName,
       required this.shiftType,
+      required this.startTime,
+      required this.endTime,
+      required this.overtimeAvailable,
       required this.attendanceDate,
       required this.checkpoints,
       required this.records});
@@ -81,6 +93,9 @@ class MySchedule {
       teamName: json['teamName'] as String? ?? '',
       shiftName: json['shiftName'] as String? ?? '',
       shiftType: json['shiftType'] as String? ?? '',
+      startTime: json['startTime'] as String? ?? '',
+      endTime: json['endTime'] as String? ?? '',
+      overtimeAvailable: json['overtimeAvailable'] == true,
       attendanceDate: json['attendanceDate'] as String? ?? '',
       checkpoints: (json['checkpoints'] as List? ?? const [])
           .map((e) => ScheduleCheckpoint.fromJson(Map<String, dynamic>.from(e)))

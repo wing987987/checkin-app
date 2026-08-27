@@ -35,6 +35,20 @@ class DemoAccounts {
       role: 'worker',
       detail: '测试项目B · 测试二班',
     ),
+    DemoAccount(
+      username: '13900000001',
+      password: '123456',
+      name: '李白',
+      role: 'worker',
+      detail: '测试项目A · 测试一班 · 标准白班',
+    ),
+    DemoAccount(
+      username: '13900000002',
+      password: '123456',
+      name: '王白',
+      role: 'worker',
+      detail: '测试项目A · 测试一班 · 标准白班',
+    ),
   ];
 }
 

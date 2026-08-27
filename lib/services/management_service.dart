@@ -6,6 +6,7 @@ import '../models/checkin_team.dart';
 import '../models/worker_assignment.dart';
 import '../models/attendance_anomaly.dart';
 import '../models/attendance_report.dart';
+import '../models/clock_photo.dart';
 import '../models/my_schedule.dart';
 
 class ManagementService {
@@ -53,11 +54,23 @@ class ManagementService {
   }
 
   static Future<ApiResult<CheckinTeam>> createTeam(
-      int projectId, String name) async {
-    final response = await _client.post('/api/ck/projects/$projectId/teams',
-        data: {'name': name, 'status': 1});
+      int projectId, Map<String, dynamic> data) async {
+    final response =
+        await _client.post('/api/ck/projects/$projectId/teams', data: data);
     return ApiResult.fromJson(response.data,
         (value) => CheckinTeam.fromJson(Map<String, dynamic>.from(value)));
+  }
+
+  static Future<ApiResult<dynamic>> deleteTeam(int teamId) async {
+    final response = await _client.delete('/api/ck/teams/$teamId');
+    return ApiResult.fromJson(response.data, (value) => value);
+  }
+
+  static Future<ApiResult<dynamic>> removeTeamMember(
+      int teamId, int workerId) async {
+    final response =
+        await _client.delete('/api/ck/teams/$teamId/members/$workerId');
+    return ApiResult.fromJson(response.data, (value) => value);
   }
 
   static Future<ApiResult<CheckinTeam>> updateTeam(
@@ -125,13 +138,20 @@ class ManagementService {
   }
 
   static Future<ApiResult<dynamic>> assignWorker(
-      int workerId, int projectId, int teamId, int shiftId) async {
+      int workerId, int projectId, int? teamId, int? shiftId) async {
     final response =
         await _client.put('/api/ck/workers/$workerId/assignment', data: {
       'projectId': projectId,
       'teamId': teamId,
       'shiftId': shiftId,
     });
+    return ApiResult.fromJson(response.data, (value) => value);
+  }
+
+  static Future<ApiResult<dynamic>> transferWorker(
+      int workerId, int projectId) async {
+    final response =
+        await _client.put('/api/ck/workers/$workerId/transfer/$projectId');
     return ApiResult.fromJson(response.data, (value) => value);
   }
 
@@ -171,6 +191,17 @@ class ManagementService {
     final response = await _client
         .get('/api/ck/files/clock-photo/$recordId/supervisor-view-url');
     return ApiResult.fromJson(response.data, (data) => data as String);
+  }
+
+  static Future<ApiResult<List<ClockPhoto>>> clockPhotos(
+      int projectId, String month) async {
+    final response = await _client.get('/api/ck/attendance/photos',
+        queryParameters: {'projectId': projectId, 'month': month});
+    return ApiResult.fromJson(
+        response.data,
+        (data) => (data as List)
+            .map((e) => ClockPhoto.fromJson(Map<String, dynamic>.from(e)))
+            .toList());
   }
 
   static Future<ApiResult<ProjectMonthReport>> projectMonthReport(

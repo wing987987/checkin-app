@@ -1,3 +1,37 @@
+class AttendanceClockDetail {
+  final int? recordId;
+  final String checkpointName, expectedTime, clockTime, originalTime;
+  final String status, anomalyMessage, correctionReason;
+  final bool countable, corrected;
+
+  const AttendanceClockDetail({
+    this.recordId,
+    required this.checkpointName,
+    required this.expectedTime,
+    required this.clockTime,
+    required this.originalTime,
+    required this.status,
+    required this.anomalyMessage,
+    required this.correctionReason,
+    required this.countable,
+    required this.corrected,
+  });
+
+  factory AttendanceClockDetail.fromJson(Map<String, dynamic> j) =>
+      AttendanceClockDetail(
+        recordId: j['recordId'] as int?,
+        checkpointName: j['checkpointName'] as String? ?? '',
+        expectedTime: j['expectedTime'] as String? ?? '',
+        clockTime: j['clockTime'] as String? ?? '',
+        originalTime: j['originalTime'] as String? ?? '',
+        status: j['status'] as String? ?? 'missing',
+        anomalyMessage: j['anomalyMessage'] as String? ?? '',
+        correctionReason: j['correctionReason'] as String? ?? '',
+        countable: j['countable'] == true,
+        corrected: j['corrected'] == true,
+      );
+}
+
 class DailyAttendance {
   final int workerId, projectId, teamId, shiftId;
   final String workerName;
@@ -5,6 +39,8 @@ class DailyAttendance {
   final double workHours, overtimeHours, workUnits;
   final int anomalyCount;
   final bool corrected;
+  final String statusMessage;
+  final List<AttendanceClockDetail> clocks;
   const DailyAttendance(
       {required this.workerId,
       required this.projectId,
@@ -20,7 +56,9 @@ class DailyAttendance {
       required this.overtimeHours,
       required this.workUnits,
       required this.anomalyCount,
-      required this.corrected});
+      required this.corrected,
+      required this.statusMessage,
+      required this.clocks});
   factory DailyAttendance.fromJson(Map<String, dynamic> j) => DailyAttendance(
       workerId: j['workerId'] as int? ?? 0,
       projectId: j['projectId'] as int? ?? 0,
@@ -36,7 +74,12 @@ class DailyAttendance {
       overtimeHours: (j['overtimeHours'] as num?)?.toDouble() ?? 0,
       workUnits: (j['workUnits'] as num?)?.toDouble() ?? 0,
       anomalyCount: j['anomalyCount'] as int? ?? 0,
-      corrected: j['corrected'] == true);
+      corrected: j['corrected'] == true,
+      statusMessage: j['statusMessage'] as String? ?? '',
+      clocks: (j['clocks'] as List? ?? const [])
+          .map((e) =>
+              AttendanceClockDetail.fromJson(Map<String, dynamic>.from(e)))
+          .toList());
 }
 
 class WorkerMonthReport {

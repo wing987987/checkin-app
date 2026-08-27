@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use, unused_element, curly_braces_in_flow_control_structures
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/checkin_project.dart';
@@ -6,9 +8,12 @@ import '../../models/checkin_team.dart';
 import '../../models/worker_assignment.dart';
 import '../../models/my_schedule.dart';
 import '../../services/management_service.dart';
+import '../../core/widgets/dialog_scroll_view.dart';
 import 'anomaly_list_page.dart';
 import 'project_report_page.dart';
 import 'project_location_picker_page.dart';
+import 'clock_photo_archive_page.dart';
+import 'worker_management_page.dart';
 
 class ProjectManagementPage extends StatefulWidget {
   final CheckinProject project;
@@ -88,8 +93,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   Card(
                       child: ListTile(
                           leading: const Icon(Icons.assessment),
-                          title: const Text('月度考勤报表'),
-                          subtitle: const Text('按班组、工人汇总'),
+                          title: const Text('考勤报表'),
+                          subtitle: const Text('项目日报、月报与工人明细'),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => Navigator.push(
                               context,
@@ -98,26 +103,61 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                       ProjectReportPage(project: project))))),
                   Card(
                       child: ListTile(
+                          leading: const Icon(Icons.photo_library_outlined),
+                          title: const Text('打卡照片归档'),
+                          subtitle: const Text('按日期查看项目工人的打卡照片'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => ClockPhotoArchivePage(
+                                      project: project))))),
+                  Card(
+                      child: ListTile(
+                          leading: const Icon(Icons.manage_accounts_outlined),
+                          title: const Text('用户管理'),
+                          subtitle: const Text('新增、编辑、分组、个人班次和项目转移'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () async {
+                            await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => WorkerManagementPage(
+                                        project: project)));
+                            if (mounted) _load();
+                          })),
+                  Card(
+                      child: ListTile(
                           leading: const Icon(Icons.add_task),
                           title: const Text('主管补卡'),
                           subtitle: const Text('补齐缺失检查点，原因必填并永久留痕'),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: workers.isEmpty ? null : _supplementClock)),
-                  _header('班组', teams.length, _addTeam),
+                  _header('班组', teams.length, shifts.isEmpty ? null : _addTeam),
                   if (teams.isEmpty) const ListTile(title: Text('暂未设置班组')),
                   ...teams.map((t) => ListTile(
                       leading: Icon(Icons.groups,
                           color: t.status == 1 ? null : Colors.grey),
                       title: Text(t.name),
-                      subtitle: t.status == 1 ? null : const Text('已停用'),
+                      subtitle: Text(
+                          '默认班次：${_shiftName(t.shiftId)}${t.status == 1 ? '' : ' · 已停用'}'),
+                      onTap: () => _manageTeamMembers(t),
                       trailing: PopupMenuButton<String>(
-                        onSelected: (value) =>
-                            value == 'edit' ? _editTeam(t) : _toggleTeam(t),
+                        onSelected: (value) {
+                          if (value == 'edit') _editTeam(t);
+                          if (value == 'members') _manageTeamMembers(t);
+                          if (value == 'delete') _deleteTeam(t);
+                          if (value == 'toggle') _toggleTeam(t);
+                        },
                         itemBuilder: (_) => [
                           const PopupMenuItem(value: 'edit', child: Text('编辑')),
+                          const PopupMenuItem(
+                              value: 'members', child: Text('管理成员')),
                           PopupMenuItem(
                               value: 'toggle',
                               child: Text(t.status == 1 ? '停用' : '启用')),
+                          const PopupMenuItem(
+                              value: 'delete', child: Text('删除班组')),
                         ],
                       ))),
                   _header('班次', shifts.length, _addShift),
@@ -138,42 +178,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                               child: Text(s.status == 1 ? '停用' : '启用')),
                         ],
                       ))),
-                  _header(
-                      '工人',
-                      workers.length,
-                      teams.isNotEmpty && shifts.isNotEmpty
-                          ? _addWorker
-                          : null),
-                  if (teams.isEmpty || shifts.isEmpty)
-                    const ListTile(title: Text('请先创建班组和班次，再添加工人')),
-                  if (workers.isEmpty && teams.isNotEmpty && shifts.isNotEmpty)
-                    const ListTile(title: Text('暂未添加工人')),
-                  ...workers.map((w) => ListTile(
-                      leading: CircleAvatar(
-                          child: Icon(
-                              w.status == 1 ? Icons.person : Icons.person_off)),
-                      title: Text(w.realName.isEmpty ? w.username : w.realName),
-                      subtitle: Text(
-                          '${w.teamName} · ${w.shiftName}${w.status == 1 ? '' : ' · 已停用'}'),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'assignment') _changeAssignment(w);
-                          if (value == 'edit') _editWorker(w);
-                          if (value == 'reset') _resetWorkerPassword(w);
-                          if (value == 'toggle') _toggleWorker(w);
-                        },
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(
-                              value: 'assignment', child: Text('调整班组/班次')),
-                          const PopupMenuItem(
-                              value: 'edit', child: Text('编辑资料')),
-                          const PopupMenuItem(
-                              value: 'reset', child: Text('重置密码')),
-                          PopupMenuItem(
-                              value: 'toggle',
-                              child: Text(w.status == 1 ? '停用账号' : '启用账号')),
-                        ],
-                      ))),
                 ]),
               ),
       );
@@ -192,9 +196,15 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       );
 
   Future<void> _supplementClock() async {
-    var worker = workers.first;
+    final eligibleWorkers =
+        workers.where((item) => item.shiftId != null).toList();
+    if (eligibleWorkers.isEmpty) {
+      _message('没有已分配班组和班次的工人');
+      return;
+    }
+    var worker = eligibleWorkers.first;
     var checkpoints =
-        (await ManagementService.checkpoints(worker.shiftId)).data ??
+        (await ManagementService.checkpoints(worker.shiftId!)).data ??
             const <ScheduleCheckpoint>[];
     if (!mounted || checkpoints.isEmpty) {
       _message('该班次没有可补卡检查点');
@@ -208,21 +218,21 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (_, setLocal) => AlertDialog(
           title: const Text('主管补卡'),
-          content: SingleChildScrollView(
+          content: DialogScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               DropdownButtonFormField<int>(
                 initialValue: worker.workerId,
                 decoration: const InputDecoration(labelText: '工人'),
-                items: workers
+                items: eligibleWorkers
                     .map((w) => DropdownMenuItem(
                         value: w.workerId,
                         child:
                             Text(w.realName.isEmpty ? w.username : w.realName)))
                     .toList(),
                 onChanged: (id) async {
-                  worker = workers.firstWhere((w) => w.workerId == id);
+                  worker = eligibleWorkers.firstWhere((w) => w.workerId == id);
                   final result =
-                      await ManagementService.checkpoints(worker.shiftId);
+                      await ManagementService.checkpoints(worker.shiftId!);
                   if (ctx.mounted && (result.data?.isNotEmpty ?? false)) {
                     setLocal(() {
                       checkpoints = result.data!;
@@ -305,33 +315,51 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   Future<void> _addTeam() async {
     final controller = TextEditingController();
+    var shiftId = shifts.first.id;
     final ok = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-                title: const Text('新增班组'),
-                content: TextField(
-                    controller: controller,
-                    autofocus: true,
-                    decoration: const InputDecoration(labelText: '班组名称')),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('取消')),
-                  FilledButton(
-                      onPressed: () async {
-                        if (controller.text.trim().isEmpty) return;
-                        final r = await ManagementService.createTeam(
-                            project.id, controller.text.trim());
-                        if (ctx.mounted) {
-                          if (r.isSuccess) {
-                            Navigator.pop(ctx, true);
-                          } else {
-                            _message(r.message);
-                          }
-                        }
-                      },
-                      child: const Text('创建'))
-                ]));
+        builder: (ctx) => StatefulBuilder(
+            builder: (_, setLocal) => AlertDialog(
+                    title: const Text('新增班组'),
+                    content: Column(mainAxisSize: MainAxisSize.min, children: [
+                      TextField(
+                          controller: controller,
+                          autofocus: true,
+                          decoration: const InputDecoration(labelText: '班组名称')),
+                      DropdownButtonFormField<int>(
+                        value: shiftId,
+                        decoration: const InputDecoration(labelText: '默认班次'),
+                        items: shifts
+                            .map((shift) => DropdownMenuItem(
+                                value: shift.id, child: Text(shift.name)))
+                            .toList(),
+                        onChanged: (value) =>
+                            setLocal(() => shiftId = value ?? shiftId),
+                      ),
+                    ]),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('取消')),
+                      FilledButton(
+                          onPressed: () async {
+                            if (controller.text.trim().isEmpty) return;
+                            final r = await ManagementService.createTeam(
+                                project.id, {
+                              'name': controller.text.trim(),
+                              'shiftId': shiftId,
+                              'status': 1
+                            });
+                            if (ctx.mounted) {
+                              if (r.isSuccess) {
+                                Navigator.pop(ctx, true);
+                              } else {
+                                _message(r.message);
+                              }
+                            }
+                          },
+                          child: const Text('创建'))
+                    ])));
     if (ok == true) _load();
   }
 
@@ -342,14 +370,12 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     var breakStart = const TimeOfDay(hour: 11, minute: 30);
     var breakEnd = const TimeOfDay(hour: 13, minute: 0);
     var end = const TimeOfDay(hour: 17, minute: 30);
-    var before = 5;
-    var after = 5;
     final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => StatefulBuilder(
             builder: (_, setLocal) => AlertDialog(
                     title: const Text('新增班次'),
-                    content: SingleChildScrollView(
+                    content: DialogScrollView(
                         child:
                             Column(mainAxisSize: MainAxisSize.min, children: [
                       TextField(
@@ -361,10 +387,6 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                           items: const [
                             DropdownMenuItem(value: 'day', child: Text('白班')),
                             DropdownMenuItem(value: 'night', child: Text('夜班')),
-                            DropdownMenuItem(
-                                value: 'high_temperature', child: Text('高温班')),
-                            DropdownMenuItem(
-                                value: 'overtime', child: Text('加班'))
                           ],
                           onChanged: (v) => setLocal(() => type = v ?? 'day')),
                       ListTile(
@@ -375,7 +397,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                 context: ctx, initialTime: start);
                             if (v != null) setLocal(() => start = v);
                           }),
-                      if (type == 'day' || type == 'high_temperature')
+                      if (type == 'day')
                         ListTile(
                             title: const Text('中午下班'),
                             trailing: Text(breakStart.format(ctx)),
@@ -384,7 +406,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                   context: ctx, initialTime: breakStart);
                               if (v != null) setLocal(() => breakStart = v);
                             }),
-                      if (type == 'day' || type == 'high_temperature')
+                      if (type == 'day')
                         ListTile(
                             title: const Text('下午上班'),
                             trailing: Text(breakEnd.format(ctx)),
@@ -401,26 +423,12 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                 context: ctx, initialTime: end);
                             if (v != null) setLocal(() => end = v);
                           }),
-                      if (type != 'day')
-                        Row(children: [
-                          Expanded(
-                              child: TextFormField(
-                                  initialValue: '5',
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                      labelText: '提前容差(分钟)'),
-                                  onChanged: (v) =>
-                                      before = int.tryParse(v) ?? 5)),
-                          const SizedBox(width: 12),
-                          Expanded(
-                              child: TextFormField(
-                                  initialValue: '5',
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                      labelText: '延后容差(分钟)'),
-                                  onChanged: (v) =>
-                                      after = int.tryParse(v) ?? 5))
-                        ]),
+                      const ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.timer_outlined),
+                        title: Text('固定打卡窗口'),
+                        subtitle: Text('上班：提前30分钟至延后5分钟\n下班：标准时间至延后30分钟'),
+                      ),
                     ])),
                     actions: [
                       TextButton(
@@ -437,12 +445,12 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                               'startTime': _time(start),
                               'endTime': _time(end),
                               'crossDay': cross ? 1 : 0,
-                              if (type == 'day' || type == 'high_temperature')
+                              if (type == 'day')
                                 'breakStartTime': _time(breakStart),
-                              if (type == 'day' || type == 'high_temperature')
+                              if (type == 'day')
                                 'breakEndTime': _time(breakEnd),
-                              'graceBeforeMinutes': type == 'day' ? 5 : before,
-                              'graceAfterMinutes': type == 'day' ? 5 : after,
+                              'graceBeforeMinutes': 30,
+                              'graceAfterMinutes': 30,
                               'status': 1
                             });
                             if (ctx.mounted) {
@@ -469,7 +477,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         builder: (ctx) => StatefulBuilder(
             builder: (_, setLocal) => AlertDialog(
                     title: const Text('新增工人'),
-                    content: SingleChildScrollView(
+                    content: DialogScrollView(
                         child:
                             Column(mainAxisSize: MainAxisSize.min, children: [
                       TextField(
@@ -674,7 +682,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (_, setLocal) => AlertDialog(
           title: const Text('编辑班次'),
-          content: SingleChildScrollView(
+          content: DialogScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(
                   controller: name,
@@ -685,27 +693,23 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 items: const [
                   DropdownMenuItem(value: 'day', child: Text('白班')),
                   DropdownMenuItem(value: 'night', child: Text('夜班')),
-                  DropdownMenuItem(
-                      value: 'high_temperature', child: Text('高温班')),
-                  DropdownMenuItem(value: 'overtime', child: Text('加班')),
                 ],
                 onChanged: (v) => setLocal(() => type = v ?? type),
               ),
               _timeTile(ctx, '开始时间', start, (v) => setLocal(() => start = v)),
-              if (type == 'day' || type == 'high_temperature') ...[
+              if (type == 'day') ...[
                 _timeTile(ctx, '中午下班', breakStart,
                     (v) => setLocal(() => breakStart = v)),
                 _timeTile(
                     ctx, '下午上班', breakEnd, (v) => setLocal(() => breakEnd = v)),
               ],
               _timeTile(ctx, '结束时间', end, (v) => setLocal(() => end = v)),
-              if (type == 'day')
-                const ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.timer_outlined),
-                  title: Text('打卡窗口：标准时间前后 5 分钟'),
-                  subtitle: Text('窗口外禁止提交打卡'),
-                ),
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.timer_outlined),
+                title: Text('固定打卡窗口'),
+                subtitle: Text('上班：提前30分钟至延后5分钟\n下班：标准时间至延后30分钟'),
+              ),
             ]),
           ),
           actions: [
@@ -721,14 +725,10 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   'startTime': _time(start),
                   'endTime': _time(end),
                   'crossDay': _minutes(end) <= _minutes(start) ? 1 : 0,
-                  if (type == 'day' || type == 'high_temperature')
-                    'breakStartTime': _time(breakStart),
-                  if (type == 'day' || type == 'high_temperature')
-                    'breakEndTime': _time(breakEnd),
-                  'graceBeforeMinutes':
-                      type == 'day' ? 5 : shift.graceBeforeMinutes,
-                  'graceAfterMinutes':
-                      type == 'day' ? 5 : shift.graceAfterMinutes,
+                  if (type == 'day') 'breakStartTime': _time(breakStart),
+                  if (type == 'day') 'breakEndTime': _time(breakEnd),
+                  'graceBeforeMinutes': 30,
+                  'graceAfterMinutes': 30,
                   'status': shift.status,
                 });
                 if (!ctx.mounted) return;
@@ -791,34 +791,52 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   Future<void> _editTeam(CheckinTeam team) async {
     final name = TextEditingController(text: team.name);
+    var shiftId = team.shiftId;
     final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('编辑班组'),
-        content: TextField(
-            controller: name,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: '班组名称')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消')),
-          FilledButton(
-            onPressed: () async {
-              if (name.text.trim().isEmpty) return;
-              final result = await ManagementService.updateTeam(
-                  team.id, {'name': name.text.trim(), 'status': team.status});
-              if (!ctx.mounted) return;
-              if (result.isSuccess) {
-                Navigator.pop(ctx, true);
-              } else {
-                _message(result.message);
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+      builder: (ctx) => StatefulBuilder(
+          builder: (_, setLocal) => AlertDialog(
+                title: const Text('编辑班组'),
+                content: Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextField(
+                      controller: name,
+                      autofocus: true,
+                      decoration: const InputDecoration(labelText: '班组名称')),
+                  DropdownButtonFormField<int>(
+                    value: shiftId,
+                    decoration: const InputDecoration(labelText: '默认班次'),
+                    items: shifts
+                        .map((shift) => DropdownMenuItem(
+                            value: shift.id, child: Text(shift.name)))
+                        .toList(),
+                    onChanged: (value) =>
+                        setLocal(() => shiftId = value ?? shiftId),
+                  ),
+                ]),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('取消')),
+                  FilledButton(
+                    onPressed: () async {
+                      if (name.text.trim().isEmpty) return;
+                      final result = await ManagementService.updateTeam(
+                          team.id, {
+                        'name': name.text.trim(),
+                        'shiftId': shiftId,
+                        'status': team.status
+                      });
+                      if (!ctx.mounted) return;
+                      if (result.isSuccess) {
+                        Navigator.pop(ctx, true);
+                      } else {
+                        _message(result.message);
+                      }
+                    },
+                    child: const Text('保存'),
+                  ),
+                ],
+              )),
     );
     if (saved == true) _load();
   }
@@ -831,12 +849,121 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     );
     if (!confirmed) return;
     final result = await ManagementService.updateTeam(
-        team.id, {'name': team.name, 'status': next});
+        team.id, {'name': team.name, 'shiftId': team.shiftId, 'status': next});
     if (result.isSuccess) {
       _load();
     } else {
       _message(result.message);
     }
+  }
+
+  String _shiftName(int id) =>
+      shifts
+          .where((shift) => shift.id == id)
+          .map((shift) => shift.name)
+          .firstOrNull ??
+      '未设置';
+
+  Future<void> _manageTeamMembers(CheckinTeam team) async {
+    await showDialog<void>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(builder: (_, setLocal) {
+              final members =
+                  workers.where((worker) => worker.teamId == team.id).toList();
+              final available =
+                  workers.where((worker) => worker.teamId != team.id).toList();
+              return AlertDialog(
+                title: Text('${team.name} · 成员管理'),
+                content: SizedBox(
+                    width: 420,
+                    child: ListView(shrinkWrap: true, children: [
+                      if (members.isEmpty)
+                        const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: Text('暂无成员'))),
+                      ...members.map((worker) => ListTile(
+                            leading: const CircleAvatar(
+                                child: Icon(Icons.person_outline)),
+                            title: Text(worker.realName.isEmpty
+                                ? worker.username
+                                : worker.realName),
+                            subtitle: Text(worker.personalShiftOverride
+                                ? '${worker.shiftName}（个人班次）'
+                                : '使用班组默认班次'),
+                            trailing: IconButton(
+                                tooltip: '移出班组',
+                                icon: const Icon(Icons.person_remove_outlined),
+                                onPressed: () async {
+                                  final result =
+                                      await ManagementService.removeTeamMember(
+                                          team.id, worker.workerId);
+                                  if (result.isSuccess) {
+                                    await _load();
+                                    setLocal(() {});
+                                  } else if (ctx.mounted)
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                        SnackBar(
+                                            content: Text(result.message)));
+                                }),
+                          )),
+                      if (available.isNotEmpty) ...[
+                        const Divider(),
+                        ListTile(
+                            leading: const Icon(Icons.person_add_alt_1),
+                            title: const Text('添加成员'),
+                            onTap: () async {
+                              WorkerAssignment selected = available.first;
+                              final chosen = await showDialog<WorkerAssignment>(
+                                  context: ctx,
+                                  builder: (pickCtx) => SimpleDialog(
+                                        title: const Text('选择工人'),
+                                        children: available
+                                            .map((worker) => SimpleDialogOption(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                          pickCtx, worker),
+                                                  child: Text(
+                                                      '${worker.realName.isEmpty ? worker.username : worker.realName}${worker.teamName.isEmpty ? '（未分组）' : '（当前：${worker.teamName}）'}'),
+                                                ))
+                                            .toList(),
+                                      ));
+                              if (chosen == null) return;
+                              selected = chosen;
+                              final result =
+                                  await ManagementService.assignWorker(
+                                      selected.workerId,
+                                      project.id,
+                                      team.id,
+                                      null);
+                              if (result.isSuccess) {
+                                await _load();
+                                setLocal(() {});
+                              }
+                            }),
+                      ],
+                    ])),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('完成'))
+                ],
+              );
+            }));
+  }
+
+  Future<void> _deleteTeam(CheckinTeam team) async {
+    final members = workers.where((worker) => worker.teamId == team.id).length;
+    if (members > 0) {
+      _message('该班组还有 $members 名成员，请先移出成员');
+      return;
+    }
+    final confirmed = await _confirm('删除班组', '确定删除“${team.name}”吗？历史打卡记录不会删除。');
+    if (!confirmed) return;
+    final result = await ManagementService.deleteTeam(team.id);
+    if (result.isSuccess)
+      _load();
+    else
+      _message(result.message);
   }
 
   Future<void> _editWorker(WorkerAssignment worker) async {

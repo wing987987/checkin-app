@@ -8,7 +8,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http_cache_file_store/http_cache_file_store.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/env_config.dart';
 import '../../services/management_service.dart';
@@ -38,14 +37,7 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
   static Future<CacheStore> _createTileCacheStore() async {
     final directory = await getTemporaryDirectory();
     return FileCacheStore(
-      '${directory.path}${Platform.pathSeparator}osm_map_tiles',
-    );
-  }
-
-  Future<void> _openOsmCopyright() async {
-    await launchUrl(
-      Uri.parse('https://www.openstreetmap.org/copyright'),
-      mode: LaunchMode.externalApplication,
+      '${directory.path}${Platform.pathSeparator}tianditu_map_tiles',
     );
   }
 
@@ -95,8 +87,9 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
+        locationSettings: AndroidSettings(
           accuracy: LocationAccuracy.high,
+          forceLocationManager: true,
           timeLimit: Duration(seconds: 15),
         ),
       );
@@ -105,7 +98,7 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
       final point = LatLng(position.latitude, position.longitude);
       setState(() => _center = point);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _mapController.move(point, 17);
+        if (mounted) _mapController.move(point, _zoomForRadius(_radius));
       });
     } catch (error) {
       if (!mounted) return;
@@ -224,7 +217,11 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                               ))
                           .toList(),
                       onChanged: (value) {
-                        if (value != null) setState(() => _radius = value);
+                        if (value == null) return;
+                        setState(() => _radius = value);
+                        if (_center != null) {
+                          _mapController.move(_center!, _zoomForRadius(value));
+                        }
                       },
                     ),
                   ],
@@ -315,9 +312,9 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                   mapController: _mapController,
                   options: MapOptions(
                     initialCenter: _center!,
-                    initialZoom: 17,
+                    initialZoom: _zoomForRadius(_radius),
                     minZoom: 3,
-                    maxZoom: 19,
+                    maxZoom: 18,
                     onPositionChanged: (camera, hasGesture) {
                       if (hasGesture && mounted) {
                         setState(() => _center = camera.center);
@@ -326,7 +323,22 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: EnvConfig.instance.mapTileUrl,
+                      urlTemplate: EnvConfig.instance.mapBaseTileUrl,
+                      subdomains: EnvConfig.instance.mapSubdomains,
+                      maxNativeZoom: 18,
+                      userAgentPackageName: EnvConfig.instance.mapUserAgent,
+                      tileProvider: CachedTileProvider(
+                        store: snapshot.data!,
+                        maxStale: const Duration(days: 7),
+                        headers: {
+                          'User-Agent': EnvConfig.instance.mapUserAgent,
+                        },
+                      ),
+                    ),
+                    TileLayer(
+                      urlTemplate: EnvConfig.instance.mapLabelTileUrl,
+                      subdomains: EnvConfig.instance.mapSubdomains,
+                      maxNativeZoom: 18,
                       userAgentPackageName: EnvConfig.instance.mapUserAgent,
                       tileProvider: CachedTileProvider(
                         store: snapshot.data!,
@@ -361,6 +373,17 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                 ),
               ),
             ),
+            const Positioned(
+              right: 6,
+              bottom: 5,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: Color(0xAAFFFFFF)),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text('© 天地图', style: TextStyle(fontSize: 10)),
+                ),
+              ),
+            ),
             Positioned(
               left: 10,
               right: 10,
@@ -384,30 +407,18 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                 ),
               ),
             ),
-            Positioned(
-              right: 6,
-              bottom: 5,
-              child: Material(
-                color: Colors.white70,
-                child: InkWell(
-                  onTap: _openOsmCopyright,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    child: Text(
-                      '© OpenStreetMap contributors',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.blue,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
     );
+  }
+
+  double _zoomForRadius(int radius) {
+    if (radius <= 200) return 16;
+    if (radius <= 500) return 15;
+    if (radius <= 1000) return 15.5;
+    if (radius <= 3000) return 14;
+    if (radius <= 10000) return 12;
+    return 10;
   }
 }

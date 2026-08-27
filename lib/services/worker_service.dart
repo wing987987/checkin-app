@@ -44,6 +44,14 @@ class WorkerService {
         response.data, (value) => Map<String, dynamic>.from(value));
   }
 
+  static Future<ApiResult<Map<String, dynamic>>> overtimeClock(
+      Map<String, dynamic> data) async {
+    final response = await DioClient.instance
+        .post('/api/ck/worker/overtime-clock', data: data);
+    return ApiResult.fromJson(
+        response.data, (value) => Map<String, dynamic>.from(value));
+  }
+
   static Future<ApiResult<String>> clockPhotoViewUrl(int recordId) async {
     final response = await DioClient.instance
         .get('/api/ck/files/clock-photo/$recordId/view-url');

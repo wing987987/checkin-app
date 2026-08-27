@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'features/auth/login_page.dart';
 import 'features/home/home_page.dart';
 import 'providers/auth_provider.dart';
+import 'services/app_update_service.dart';
+import 'core/widgets/update_dialog.dart';
 
 void main() {
   runApp(
@@ -43,6 +45,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     context.read<AuthProvider>().loadToken();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdate());
+  }
+
+  Future<void> _checkUpdate() async {
+    final result = await AppUpdateService.instance.checkUpdate();
+    if (!mounted || !result.hasUpdate || result.latestVersion == null) return;
+    showUpdateDialog(context, result.latestVersion!, result.currentVersion);
   }
 
   @override

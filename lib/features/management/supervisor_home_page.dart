@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../models/checkin_project.dart';
-import '../../providers/auth_provider.dart';
 import '../../services/management_service.dart';
 import '../../core/widgets/test_account_switcher.dart';
 import 'project_location_picker_page.dart';
 import 'project_management_page.dart';
+import '../../core/widgets/user_account_menu.dart';
 
 class SupervisorHomePage extends StatefulWidget {
   const SupervisorHomePage({super.key});
@@ -45,13 +44,14 @@ class _SupervisorHomePageState extends State<SupervisorHomePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('项目管理'), actions: [
-          const TestAccountSwitcher(),
-          IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
-          IconButton(
-              onPressed: () => context.read<AuthProvider>().logout(),
-              icon: const Icon(Icons.logout)),
-        ]),
+        appBar: AppBar(
+            leadingWidth: 160,
+            leading: const UserAccountMenu(),
+            title: const Text('项目管理'),
+            actions: [
+              const TestAccountSwitcher(),
+              IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
+            ]),
         floatingActionButton: FloatingActionButton.extended(
             onPressed: _createProject,
             icon: const Icon(Icons.add),
