@@ -167,7 +167,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                           color: s.status == 1 ? null : Colors.grey),
                       title: Text(s.name),
                       subtitle: Text(
-                          '${_typeName(s.shiftType)}  ${s.startTime}–${s.endTime}${s.crossDay ? '（跨日）' : ''}${s.status == 1 ? '' : ' · 已停用'}'),
+                          '${_typeName(s.shiftType)}  ${s.startTime}–${s.shiftType == 'night' ? '次日 ' : ''}${s.endTime}${s.status == 1 ? '' : ' · 已停用'}'),
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) =>
                             value == 'edit' ? _editShift(s) : _toggleShift(s),
@@ -388,9 +388,18 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                             DropdownMenuItem(value: 'day', child: Text('白班')),
                             DropdownMenuItem(value: 'night', child: Text('夜班')),
                           ],
-                          onChanged: (v) => setLocal(() => type = v ?? 'day')),
+                          onChanged: (v) => setLocal(() {
+                                type = v ?? 'day';
+                                if (type == 'night') {
+                                  start = const TimeOfDay(hour: 21, minute: 0);
+                                  end = const TimeOfDay(hour: 5, minute: 30);
+                                } else {
+                                  start = const TimeOfDay(hour: 6, minute: 30);
+                                  end = const TimeOfDay(hour: 17, minute: 30);
+                                }
+                              })),
                       ListTile(
-                          title: const Text('开始时间'),
+                          title: const Text('上班时间'),
                           trailing: Text(start.format(ctx)),
                           onTap: () async {
                             final v = await showTimePicker(
@@ -416,7 +425,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                               if (v != null) setLocal(() => breakEnd = v);
                             }),
                       ListTile(
-                          title: const Text('结束时间'),
+                          title: Text(type == 'night' ? '下班时间（次日）' : '下班时间'),
                           trailing: Text(end.format(ctx)),
                           onTap: () async {
                             final v = await showTimePicker(
@@ -437,14 +446,19 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       FilledButton(
                           onPressed: () async {
                             if (name.text.trim().isEmpty) return;
-                            final cross = _minutes(end) <= _minutes(start);
+                            final timeError = _shiftTimeError(
+                                type, start, end, breakStart, breakEnd);
+                            if (timeError != null) {
+                              _message(timeError);
+                              return;
+                            }
                             final r = await ManagementService.createShift(
                                 project.id, {
                               'name': name.text.trim(),
                               'shiftType': type,
                               'startTime': _time(start),
                               'endTime': _time(end),
-                              'crossDay': cross ? 1 : 0,
+                              'crossDay': type == 'night' ? 1 : 0,
                               if (type == 'day')
                                 'breakStartTime': _time(breakStart),
                               if (type == 'day')
@@ -694,16 +708,29 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   DropdownMenuItem(value: 'day', child: Text('白班')),
                   DropdownMenuItem(value: 'night', child: Text('夜班')),
                 ],
-                onChanged: (v) => setLocal(() => type = v ?? type),
+                onChanged: (v) => setLocal(() {
+                  final nextType = v ?? type;
+                  if (nextType != type) {
+                    type = nextType;
+                    if (type == 'night') {
+                      start = const TimeOfDay(hour: 21, minute: 0);
+                      end = const TimeOfDay(hour: 5, minute: 30);
+                    } else {
+                      start = const TimeOfDay(hour: 6, minute: 30);
+                      end = const TimeOfDay(hour: 17, minute: 30);
+                    }
+                  }
+                }),
               ),
-              _timeTile(ctx, '开始时间', start, (v) => setLocal(() => start = v)),
+              _timeTile(ctx, '上班时间', start, (v) => setLocal(() => start = v)),
               if (type == 'day') ...[
                 _timeTile(ctx, '中午下班', breakStart,
                     (v) => setLocal(() => breakStart = v)),
                 _timeTile(
                     ctx, '下午上班', breakEnd, (v) => setLocal(() => breakEnd = v)),
               ],
-              _timeTile(ctx, '结束时间', end, (v) => setLocal(() => end = v)),
+              _timeTile(ctx, type == 'night' ? '下班时间（次日）' : '下班时间',
+                  end, (v) => setLocal(() => end = v)),
               const ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.timer_outlined),
@@ -719,12 +746,18 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
             FilledButton(
               onPressed: () async {
                 if (name.text.trim().isEmpty) return;
+                final timeError =
+                    _shiftTimeError(type, start, end, breakStart, breakEnd);
+                if (timeError != null) {
+                  _message(timeError);
+                  return;
+                }
                 final result = await ManagementService.updateShift(shift.id, {
                   'name': name.text.trim(),
                   'shiftType': type,
                   'startTime': _time(start),
                   'endTime': _time(end),
-                  'crossDay': _minutes(end) <= _minutes(start) ? 1 : 0,
+                  'crossDay': type == 'night' ? 1 : 0,
                   if (type == 'day') 'breakStartTime': _time(breakStart),
                   if (type == 'day') 'breakEndTime': _time(breakEnd),
                   'graceBeforeMinutes': 30,
@@ -1066,6 +1099,29 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   }
 
   int _minutes(TimeOfDay value) => value.hour * 60 + value.minute;
+
+  String? _shiftTimeError(String type, TimeOfDay start, TimeOfDay end,
+      TimeOfDay breakStart, TimeOfDay breakEnd) {
+    final startMinutes = _minutes(start);
+    final endMinutes = _minutes(end);
+    if (type == 'night') {
+      return endMinutes < startMinutes
+          ? null
+          : '夜班下班时间必须早于上班时间，下班时间按次日计算';
+    }
+    if (startMinutes >= endMinutes) {
+      return '白班上班时间必须早于下班时间';
+    }
+    final breakStartMinutes = _minutes(breakStart);
+    final breakEndMinutes = _minutes(breakEnd);
+    if (!(startMinutes < breakStartMinutes &&
+        breakStartMinutes < breakEndMinutes &&
+        breakEndMinutes < endMinutes)) {
+      return '白班时间顺序应为：上班、中午下班、下午上班、下班';
+    }
+    return null;
+  }
+
   TimeOfDay _parseTime(String value) {
     final parts = value.split(':');
     return TimeOfDay(

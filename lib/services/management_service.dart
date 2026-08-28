@@ -177,6 +177,18 @@ class ManagementService {
             AttendanceAnomaly.fromJson(Map<String, dynamic>.from(value)));
   }
 
+  static Future<ApiResult<List<DailyAttendance>>> anomalyDay(
+      int recordId) async {
+    final response =
+        await _client.get('/api/ck/attendance/anomalies/$recordId/day');
+    return ApiResult.fromJson(
+        response.data,
+        (value) => (value as List)
+            .map((row) =>
+                DailyAttendance.fromJson(Map<String, dynamic>.from(row)))
+            .toList());
+  }
+
   static Future<ApiResult<List<Map<String, dynamic>>>> adjustmentHistory(
       int recordId) async {
     final response =
@@ -223,6 +235,14 @@ class ManagementService {
       Map<String, dynamic> data) async {
     final response =
         await _client.post('/api/ck/attendance/supplements', data: data);
+    return ApiResult.fromJson(
+        response.data, (value) => Map<String, dynamic>.from(value));
+  }
+
+  static Future<ApiResult<Map<String, dynamic>>> supplementOvertime(
+      Map<String, dynamic> data) async {
+    final response = await _client
+        .post('/api/ck/attendance/supplements/overtime', data: data);
     return ApiResult.fromJson(
         response.data, (value) => Map<String, dynamic>.from(value));
   }

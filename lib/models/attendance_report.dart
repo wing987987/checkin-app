@@ -1,34 +1,43 @@
 class AttendanceClockDetail {
-  final int? recordId;
+  final int? recordId, checkpointId;
+  final int expectedDayOffset;
   final String checkpointName, expectedTime, clockTime, originalTime;
-  final String status, anomalyMessage, correctionReason;
-  final bool countable, corrected;
+  final String status, anomalyMessage, adjustmentAction, correctionReason;
+  final bool countable, corrected, hasPhoto;
 
   const AttendanceClockDetail({
     this.recordId,
+    this.checkpointId,
+    required this.expectedDayOffset,
     required this.checkpointName,
     required this.expectedTime,
     required this.clockTime,
     required this.originalTime,
     required this.status,
     required this.anomalyMessage,
+    required this.adjustmentAction,
     required this.correctionReason,
     required this.countable,
     required this.corrected,
+    required this.hasPhoto,
   });
 
   factory AttendanceClockDetail.fromJson(Map<String, dynamic> j) =>
       AttendanceClockDetail(
         recordId: j['recordId'] as int?,
+        checkpointId: j['checkpointId'] as int?,
+        expectedDayOffset: j['expectedDayOffset'] as int? ?? 0,
         checkpointName: j['checkpointName'] as String? ?? '',
         expectedTime: j['expectedTime'] as String? ?? '',
         clockTime: j['clockTime'] as String? ?? '',
         originalTime: j['originalTime'] as String? ?? '',
         status: j['status'] as String? ?? 'missing',
         anomalyMessage: j['anomalyMessage'] as String? ?? '',
+        adjustmentAction: j['adjustmentAction'] as String? ?? '',
         correctionReason: j['correctionReason'] as String? ?? '',
         countable: j['countable'] == true,
         corrected: j['corrected'] == true,
+        hasPhoto: j['hasPhoto'] == true,
       );
 }
 

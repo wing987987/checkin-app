@@ -433,12 +433,35 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       await _deleteTemporaryFile(watermarkedPhotoPath);
       watermarkedPhotoPath = null;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(result.data?['anomalyType'] == null
-                ? overtime
-                    ? '加班打卡成功'
-                    : '打卡成功'
-                : '打卡已记录，存在异常，等待主管处理')));
+        final anomalyType = result.data?['anomalyType']?.toString() ?? '';
+        final anomalyMessage = result.data?['anomalyMessage']?.toString();
+        if (!overtime && anomalyType.split(',').contains('time_window')) {
+          await showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              icon: const Icon(Icons.warning_amber_rounded,
+                  color: Colors.orange, size: 42),
+              title: const Text('打卡成功，时间异常'),
+              content: Text(
+                '${anomalyMessage ?? '本次打卡不在规定时间范围内'}。\n\n'
+                '该记录暂不计入工时，请联系主管核对。',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('我知道了'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(anomalyType.isEmpty
+                  ? overtime
+                      ? '加班打卡成功'
+                      : '打卡成功'
+                  : '打卡已记录，存在异常，等待主管处理')));
+        }
         await _load();
       }
     } catch (e) {

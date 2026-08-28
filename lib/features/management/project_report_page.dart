@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/attendance_report.dart';
 import '../../models/checkin_project.dart';
+import '../../core/widgets/zoomable_network_image.dart';
 import '../../services/management_service.dart';
 
 enum _ProjectReportMode { day, month }
@@ -269,21 +270,405 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                           color: clock.status == 'missing' || !clock.countable
                               ? Colors.orange
                               : _blue),
-                      title: Text(clock.checkpointName),
-                      trailing: Text(clock.status == 'missing'
-                          ? '未打卡'
-                          : _time(clock.clockTime)),
+                      title: Row(children: [
+                        Flexible(child: Text(clock.checkpointName)),
+                        if (clock.adjustmentAction.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: Colors.indigo.withValues(alpha: .1),
+                                borderRadius: BorderRadius.circular(10)),
+                            child: Text(
+                                _adjustmentLabel(clock.adjustmentAction),
+                                style: const TextStyle(
+                                    color: Colors.indigo, fontSize: 12)),
+                          ),
+                        ],
+                      ]),
+                      subtitle: clock.correctionReason.isEmpty
+                          ? null
+                          : Text('原因：${clock.correctionReason}'),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (clock.status == 'missing' &&
+                            clock.checkpointId != null)
+                          TextButton.icon(
+                              onPressed: () => _supplementMissing(day, clock),
+                              icon: const Icon(Icons.add_task_outlined),
+                              label: const Text('补卡')),
+                        if (clock.hasPhoto && clock.recordId != null)
+                          IconButton(
+                              tooltip: '查看打卡照片',
+                              onPressed: () => _showClockPhoto(day, clock),
+                              icon: const Icon(Icons.photo_camera_outlined,
+                                  color: _blue)),
+                        if (clock.status != 'missing')
+                          Text(_time(clock.clockTime)),
+                      ]),
                     )),
-                if (day.status == 'missing' || day.status == 'anomaly')
-                  Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                          onPressed: () => _manualHours(day),
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('人工填写工时'))),
+                Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                        onPressed: () => _chooseSupplement(day),
+                        icon: const Icon(Icons.add_task_outlined),
+                        label: const Text('人工补打卡'))),
               ],
             )),
       );
+
+  Future<void> _showClockPhoto(
+      DailyAttendance day, AttendanceClockDetail clock) async {
+    final recordId = clock.recordId;
+    if (recordId == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${day.workerName} · ${clock.checkpointName}'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: FutureBuilder(
+            future: ManagementService.anomalyPhotoViewUrl(recordId),
+            builder: (_, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const SizedBox(
+                    height: 240,
+                    child: Center(child: CircularProgressIndicator()));
+              }
+              final result = snapshot.data;
+              final url = result?.data;
+              if (url == null || url.isEmpty) {
+                return SizedBox(
+                    height: 120,
+                    child: Center(child: Text(result?.message ?? '照片加载失败')));
+              }
+              return ZoomableNetworkImage(url: url);
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))
+        ],
+      ),
+    );
+  }
+
+  Future<void> _supplementMissing(
+      DailyAttendance day, AttendanceClockDetail clock) async {
+    final checkpointId = clock.checkpointId;
+    if (checkpointId == null) return;
+    final attendanceDate = DateTime.tryParse(day.date);
+    final timeParts = clock.expectedTime.split(':');
+    if (attendanceDate == null || timeParts.length < 2) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('标准打卡时间无效，无法补卡')));
+      return;
+    }
+    var clockTime = DateTime(
+      attendanceDate.year,
+      attendanceDate.month,
+      attendanceDate.day + clock.expectedDayOffset,
+      int.tryParse(timeParts[0]) ?? 0,
+      int.tryParse(timeParts[1]) ?? 0,
+    );
+    final reason = TextEditingController();
+    final reasonFocus = FocusNode();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setLocal) => AlertDialog(
+          title: Text('${day.workerName} · ${clock.checkpointName}补卡'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('补卡时间'),
+              subtitle: Text(DateFormat('yyyy-MM-dd HH:mm').format(clockTime)),
+              trailing: const Icon(Icons.edit_calendar_outlined),
+              onTap: () async {
+                final date = await showDatePicker(
+                    context: ctx,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                    initialDate: clockTime.isAfter(DateTime.now())
+                        ? DateTime.now()
+                        : clockTime);
+                if (date == null || !ctx.mounted) return;
+                final time = await showTimePicker(
+                    context: ctx,
+                    initialTime: TimeOfDay.fromDateTime(clockTime));
+                if (time != null) {
+                  setLocal(() => clockTime = DateTime(
+                      date.year, date.month, date.day, time.hour, time.minute));
+                }
+              },
+            ),
+            TextField(
+              controller: reason,
+              focusNode: reasonFocus,
+              autofocus: true,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                  labelText: '补卡原因（必填）', hintText: '请输入本次补卡原因'),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('取消')),
+            FilledButton(
+              onPressed: () async {
+                if (reason.text.trim().isEmpty) {
+                  reasonFocus.requestFocus();
+                  return;
+                }
+                final result = await ManagementService.supplementClock({
+                  'workerId': day.workerId,
+                  'projectId': day.projectId,
+                  'teamId': day.teamId,
+                  'shiftId': day.shiftId,
+                  'checkpointId': checkpointId,
+                  'attendanceDate': day.date,
+                  'clockTime': clockTime.toIso8601String(),
+                  'reason': reason.text.trim(),
+                });
+                if (!ctx.mounted) return;
+                if (result.isSuccess) {
+                  Navigator.pop(ctx, true);
+                } else {
+                  ScaffoldMessenger.of(ctx)
+                      .showSnackBar(SnackBar(content: Text(result.message)));
+                }
+              },
+              child: const Text('确认补卡'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reason.dispose();
+    reasonFocus.dispose();
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('补卡成功')));
+      await _load();
+    }
+  }
+
+  Future<void> _chooseSupplement(DailyAttendance day) async {
+    final missing = day.clocks
+        .where(
+            (clock) => clock.status == 'missing' && clock.checkpointId != null)
+        .toList();
+    final selected = await showDialog<Object>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('选择补打卡类型'),
+        children: [
+          ...missing.map((clock) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, clock),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.add_task_outlined),
+                  title: Text(clock.checkpointName),
+                  subtitle: Text(
+                      '标准时间 ${clock.expectedDayOffset > 0 ? '次日 ' : ''}${clock.expectedTime}'),
+                ),
+              )),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'overtime'),
+            child: const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.more_time_outlined),
+              title: Text('补加班打卡'),
+              subtitle: Text('第一次为加班开始，后续打卡刷新加班结束'),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (selected is AttendanceClockDetail && mounted) {
+      await _supplementMissing(day, selected);
+    } else if (selected == 'overtime' && mounted) {
+      await _supplementOvertime(day);
+    }
+  }
+
+  Future<void> _supplementOvertime(DailyAttendance day) async {
+    final overtime = day.clocks
+        .where((clock) =>
+            clock.recordId != null && clock.checkpointName.startsWith('加班'))
+        .toList();
+    final recordedTimes = day.clocks
+        .map((clock) => DateTime.tryParse(clock.clockTime))
+        .whereType<DateTime>()
+        .toList()
+      ..sort();
+    final overtimeTimes = overtime
+        .map((clock) => DateTime.tryParse(clock.clockTime))
+        .whereType<DateTime>()
+        .toList()
+      ..sort();
+    final attendanceDate = DateTime.tryParse(day.date) ?? DateTime.now();
+    final expectedTimes = day.clocks
+        .map((clock) {
+          final parts = clock.expectedTime.split(':');
+          if (parts.length < 2) return null;
+          return DateTime(
+              attendanceDate.year,
+              attendanceDate.month,
+              attendanceDate.day + clock.expectedDayOffset,
+              int.tryParse(parts[0]) ?? 0,
+              int.tryParse(parts[1]) ?? 0);
+        })
+        .whereType<DateTime>()
+        .toList()
+      ..sort();
+    var clockTime = overtime.isNotEmpty && recordedTimes.isNotEmpty
+        ? recordedTimes.last.add(const Duration(hours: 1))
+        : expectedTimes.isNotEmpty
+            ? expectedTimes.last.add(const Duration(minutes: 30))
+            : DateTime(attendanceDate.year, attendanceDate.month,
+                attendanceDate.day, 18);
+    final shiftEnd = expectedTimes.isNotEmpty
+        ? expectedTimes.last
+        : DateTime(attendanceDate.year, attendanceDate.month,
+            attendanceDate.day, 17, 30);
+    final firstExpected = expectedTimes.isNotEmpty
+        ? expectedTimes.first
+        : DateTime(attendanceDate.year, attendanceDate.month,
+            attendanceDate.day, 6, 30);
+    final nextShiftStart = DateTime(attendanceDate.year, attendanceDate.month,
+        attendanceDate.day + 1, firstExpected.hour, firstExpected.minute);
+    if (!clockTime.isAfter(shiftEnd) || !clockTime.isBefore(nextShiftStart)) {
+      clockTime = shiftEnd.add(const Duration(minutes: 30));
+    }
+    var selectedDayOffset = DateUtils.isSameDay(
+            clockTime, attendanceDate.add(const Duration(days: 1)))
+        ? 1
+        : 0;
+    final label = overtime.isEmpty ? '加班开始' : '加班结束';
+    final reason = TextEditingController();
+    final reasonFocus = FocusNode();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setLocal) => AlertDialog(
+          title: Text('${day.workerName} · 补$label打卡'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Align(
+                alignment: Alignment.centerLeft, child: Text('选择加班发生日期')),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<int>(
+                segments: const [
+                  ButtonSegment(value: 0, label: Text('当日')),
+                  ButtonSegment(value: 1, label: Text('次日')),
+                ],
+                selected: {selectedDayOffset},
+                onSelectionChanged: (value) => setLocal(() {
+                  selectedDayOffset = value.first;
+                  clockTime = DateTime(
+                      attendanceDate.year,
+                      attendanceDate.month,
+                      attendanceDate.day + selectedDayOffset,
+                      clockTime.hour,
+                      clockTime.minute);
+                }),
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('$label时间'),
+              subtitle: Text(DateFormat('yyyy-MM-dd HH:mm').format(clockTime)),
+              trailing: const Icon(Icons.access_time_outlined),
+              onTap: () async {
+                final time = await showTimePicker(
+                    context: ctx,
+                    initialTime: TimeOfDay.fromDateTime(clockTime));
+                if (time != null) {
+                  setLocal(() => clockTime = DateTime(
+                      attendanceDate.year,
+                      attendanceDate.month,
+                      attendanceDate.day + selectedDayOffset,
+                      time.hour,
+                      time.minute));
+                }
+              },
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '允许范围：${DateFormat('MM-dd HH:mm').format(shiftEnd)}之后，${DateFormat('MM-dd HH:mm').format(nextShiftStart)}之前',
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: reason,
+              focusNode: reasonFocus,
+              autofocus: true,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                  labelText: '补卡原因（必填）', hintText: '请输入本次补加班卡原因'),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('取消')),
+            FilledButton(
+              onPressed: () async {
+                if (reason.text.trim().isEmpty) {
+                  reasonFocus.requestFocus();
+                  return;
+                }
+                if (!clockTime.isAfter(shiftEnd) ||
+                    !clockTime.isBefore(nextShiftStart)) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                      content: Text(
+                          '补加班时间必须晚于 ${DateFormat('MM-dd HH:mm').format(shiftEnd)}，并早于 ${DateFormat('MM-dd HH:mm').format(nextShiftStart)}')));
+                  return;
+                }
+                if (overtimeTimes.isNotEmpty &&
+                    !clockTime.isAfter(overtimeTimes.last)) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                      content: Text(
+                          '加班结束时间必须晚于已有打卡 ${DateFormat('MM-dd HH:mm').format(overtimeTimes.last)}')));
+                  return;
+                }
+                final result = await ManagementService.supplementOvertime({
+                  'workerId': day.workerId,
+                  'projectId': day.projectId,
+                  'teamId': day.teamId,
+                  'shiftId': day.shiftId,
+                  'attendanceDate': day.date,
+                  'clockTime': clockTime.toIso8601String(),
+                  'reason': reason.text.trim(),
+                });
+                if (!ctx.mounted) return;
+                if (result.isSuccess) {
+                  Navigator.pop(ctx, true);
+                } else {
+                  ScaffoldMessenger.of(ctx)
+                      .showSnackBar(SnackBar(content: Text(result.message)));
+                }
+              },
+              child: const Text('确认补卡'),
+            ),
+          ],
+        ),
+      ),
+    );
+    reason.dispose();
+    reasonFocus.dispose();
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('补加班卡成功')));
+      await _load();
+    }
+  }
 
   Widget _monthView() {
     final value = report!;
@@ -371,56 +756,14 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
     return minutes == 0 ? '$hours小时' : '$hours小时$minutes分钟';
   }
 
-  Future<void> _manualHours(DailyAttendance day) async {
-    final hours = TextEditingController();
-    final reason = TextEditingController();
-    final saved = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-              title: Text('${day.workerName} · ${day.date}'),
-              content: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Text('该日打卡不完整，请根据现场实际情况人工填写正常工时。'),
-                TextField(
-                    controller: hours,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration:
-                        const InputDecoration(labelText: '正常工时（0–24小时）')),
-                TextField(
-                    controller: reason,
-                    maxLines: 3,
-                    decoration: const InputDecoration(labelText: '判断原因（必填）')),
-              ]),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('取消')),
-                FilledButton(
-                    onPressed: () async {
-                      final value = double.tryParse(hours.text);
-                      if (value == null ||
-                          value < 0 ||
-                          value > 24 ||
-                          reason.text.trim().isEmpty) {
-                        return;
-                      }
-                      final result = await ManagementService.setManualHours({
-                        'workerId': day.workerId,
-                        'projectId': day.projectId,
-                        'teamId': day.teamId,
-                        'shiftId': day.shiftId,
-                        'attendanceDate': day.date,
-                        'workHours': value,
-                        'reason': reason.text.trim(),
-                      });
-                      if (!ctx.mounted) return;
-                      if (result.isSuccess) Navigator.pop(ctx, true);
-                    },
-                    child: const Text('确认并留痕')),
-              ],
-            ));
-    if (saved == true) _load();
-  }
+  String _adjustmentLabel(String action) =>
+      const {
+        'supplement': '主管补卡',
+        'correct': '时间调整',
+        'confirm': '确认有效',
+        'void': '历史误打',
+      }[action] ??
+      action;
 }
 
 class _AttendanceGauge extends StatelessWidget {

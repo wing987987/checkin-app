@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/attendance_report.dart';
+import '../../core/widgets/zoomable_network_image.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/worker_service.dart';
 
@@ -66,8 +67,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
           title: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('我的统计',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+            const Text('我的统计', style: TextStyle(fontWeight: FontWeight.w700)),
             Text(
               context.watch<AuthProvider>().currentUser?.realName?.isNotEmpty ==
                       true
@@ -355,17 +355,28 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
           child: Padding(
         padding: const EdgeInsets.only(left: 8, bottom: 22),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(clock.checkpointName,
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          Row(children: [
+            Expanded(
+                child: Text(clock.checkpointName,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w600))),
+            if (clock.hasPhoto && clock.recordId != null)
+              IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: '查看打卡照片',
+                  onPressed: () => _showClockPhoto(clock),
+                  icon: const Icon(Icons.photo_camera_outlined, color: _blue)),
+          ]),
           const SizedBox(height: 3),
           Text(_clockDescription(clock),
               style: TextStyle(
                   color:
                       warning ? Colors.orange[800] : const Color(0xFF7A838E))),
-          if (clock.correctionReason.isNotEmpty)
-            Text('修正原因：${clock.correctionReason}',
-                style: const TextStyle(color: Color(0xFF7A838E))),
+          if (clock.adjustmentAction.isNotEmpty)
+            Text(
+                '${_adjustmentLabel(clock.adjustmentAction)}${clock.correctionReason.isEmpty ? '' : ' · 原因：${clock.correctionReason}'}',
+                style: const TextStyle(
+                    color: Colors.indigo, fontWeight: FontWeight.w500)),
         ]),
       )),
     ]));
@@ -455,12 +466,71 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
             size: 20,
             color: missing || !clock.countable ? Colors.orange : _blue),
         const SizedBox(width: 10),
-        Expanded(child: Text(clock.checkpointName)),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(clock.checkpointName),
+          if (clock.adjustmentAction.isNotEmpty)
+            Text(
+                '${_adjustmentLabel(clock.adjustmentAction)}${clock.correctionReason.isEmpty ? '' : ' · 原因：${clock.correctionReason}'}',
+                style: const TextStyle(color: Colors.indigo, fontSize: 12)),
+        ])),
+        if (clock.hasPhoto && clock.recordId != null)
+          IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: '查看打卡照片',
+              onPressed: () => _showClockPhoto(clock),
+              icon: const Icon(Icons.photo_camera_outlined, color: _blue)),
         Text(missing ? '未打卡' : _shortTime(clock.clockTime),
             style: const TextStyle(fontWeight: FontWeight.w600)),
       ]),
     );
   }
+
+  Future<void> _showClockPhoto(AttendanceClockDetail clock) async {
+    final recordId = clock.recordId;
+    if (recordId == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${clock.checkpointName} · 打卡照片'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: FutureBuilder(
+            future: WorkerService.clockPhotoViewUrl(recordId),
+            builder: (_, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const SizedBox(
+                    height: 240,
+                    child: Center(child: CircularProgressIndicator()));
+              }
+              final result = snapshot.data;
+              final url = result?.data;
+              if (url == null || url.isEmpty) {
+                return SizedBox(
+                    height: 120,
+                    child: Center(child: Text(result?.message ?? '照片加载失败')));
+              }
+              return ZoomableNetworkImage(url: url);
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('关闭'))
+        ],
+      ),
+    );
+  }
+
+  String _adjustmentLabel(String action) =>
+      const {
+        'supplement': '主管补卡',
+        'correct': '时间调整',
+        'confirm': '确认有效',
+        'void': '历史误打',
+      }[action] ??
+      action;
 
   Widget _statusBadge(DailyAttendance day) {
     final normal = day.status == 'normal';
