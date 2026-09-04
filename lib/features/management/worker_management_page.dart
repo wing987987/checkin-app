@@ -113,65 +113,90 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
               builder: (_, setLocal) => AlertDialog(
                 title: Text(creating ? '新增用户' : '编辑用户'),
                 content: DialogScrollView(
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextField(
-                      controller: name,
-                      decoration: const InputDecoration(labelText: '姓名')),
-                  TextField(
-                      controller: username,
-                      readOnly: !creating,
-                      enableInteractiveSelection: true,
-                      decoration: InputDecoration(
-                          labelText: '登录用户名',
-                          helperText: creating ? null : '用户名不可修改，长按可复制')),
-                  if (creating)
-                    TextField(
-                        controller: password,
-                        obscureText: true,
-                        decoration: const InputDecoration(labelText: '初始密码')),
-                  TextField(
-                      controller: phone,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(labelText: '手机号（选填）')),
-                  DropdownButtonFormField<int>(
-                    value: teamId,
-                    decoration: const InputDecoration(labelText: '班组'),
-                    items: [
+                    child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      _fieldLabel('姓名'),
+                      TextField(
+                          controller: name,
+                          decoration: const InputDecoration(hintText: '请输入姓名')),
+                      const SizedBox(height: 16),
+                      _fieldLabel('登录用户名'),
+                      TextField(
+                          controller: username,
+                          readOnly: !creating,
+                          enableInteractiveSelection: true,
+                          decoration:
+                              const InputDecoration(hintText: '请输入登录用户名')),
+                      if (!creating) ...[
+                        const SizedBox(height: 4),
+                        const Text('用户名不可修改，长按可复制',
+                            style: TextStyle(
+                                fontSize: 12, color: Color(0xFF92939A))),
+                      ],
+                      if (creating) ...[
+                        const SizedBox(height: 16),
+                        _fieldLabel('初始密码'),
+                        TextField(
+                            controller: password,
+                            obscureText: true,
+                            decoration:
+                                const InputDecoration(hintText: '请输入初始密码')),
+                      ],
+                      const SizedBox(height: 16),
+                      _fieldLabel('手机号（选填）'),
+                      TextField(
+                          controller: phone,
+                          keyboardType: TextInputType.phone,
+                          decoration:
+                              const InputDecoration(hintText: '请输入手机号')),
+                      const SizedBox(height: 16),
+                      _fieldLabel('班组'),
+                      DropdownButtonFormField<int>(
+                        value: teamId,
+                        decoration: const InputDecoration(),
+                        items: [
+                          if (!creating)
+                            const DropdownMenuItem(
+                                value: 0, child: Text('暂不分配班组')),
+                          ...teams.map((team) => DropdownMenuItem(
+                              value: team.id, child: Text(team.name))),
+                        ],
+                        onChanged: (value) => setLocal(() {
+                          teamId = value ?? 0;
+                          if (teamId == 0) personalShiftId = 0;
+                        }),
+                      ),
+                      const SizedBox(height: 16),
+                      _fieldLabel('个人班次（选填）'),
+                      DropdownButtonFormField<int>(
+                        value: personalShiftId,
+                        decoration: const InputDecoration(),
+                        items: [
+                          const DropdownMenuItem(
+                              value: 0, child: Text('使用班组默认班次')),
+                          ...shifts.map((shift) => DropdownMenuItem(
+                              value: shift.id, child: Text(shift.name))),
+                        ],
+                        onChanged: teamId == 0
+                            ? null
+                            : (value) =>
+                                setLocal(() => personalShiftId = value ?? 0),
+                      ),
+                      if (personalShiftId != 0)
+                        const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text('已选择个人班次：该用户将使用此班次，不再使用班组默认班次。',
+                                style: TextStyle(color: Colors.orange))),
                       if (!creating)
-                        const DropdownMenuItem(value: 0, child: Text('暂不分配班组')),
-                      ...teams.map((team) => DropdownMenuItem(
-                          value: team.id, child: Text(team.name))),
-                    ],
-                    onChanged: (value) => setLocal(() {
-                      teamId = value ?? 0;
-                      if (teamId == 0) personalShiftId = 0;
-                    }),
-                  ),
-                  DropdownButtonFormField<int>(
-                    value: personalShiftId,
-                    decoration: const InputDecoration(labelText: '个人班次（选填）'),
-                    items: [
-                      const DropdownMenuItem(value: 0, child: Text('使用班组默认班次')),
-                      ...shifts.map((shift) => DropdownMenuItem(
-                          value: shift.id, child: Text(shift.name))),
-                    ],
-                    onChanged: teamId == 0
-                        ? null
-                        : (value) =>
-                            setLocal(() => personalShiftId = value ?? 0),
-                  ),
-                  if (personalShiftId != 0)
-                    const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text('已选择个人班次：该用户将使用此班次，不再使用班组默认班次。',
-                            style: TextStyle(color: Colors.orange))),
-                  if (!creating)
-                    SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('账号启用'),
-                        value: enabled,
-                        onChanged: (value) => setLocal(() => enabled = value)),
-                ])),
+                        SwitchListTile(
+                            contentPadding: const EdgeInsets.only(top: 8),
+                            title: const Text('账号启用'),
+                            value: enabled,
+                            onChanged: (value) =>
+                                setLocal(() => enabled = value)),
+                    ])),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
@@ -217,6 +242,12 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
     if (saved == true) _load();
   }
 
+  Widget _fieldLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+      );
+
   Future<void> _transfer(WorkerAssignment worker) async {
     final targets =
         projects.where((project) => project.id != widget.project.id).toList();
@@ -233,7 +264,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                 content: Column(mainAxisSize: MainAxisSize.min, children: [
                   DropdownButtonFormField<int>(
                       value: target.id,
-                      decoration: const InputDecoration(labelText: '目标项目'),
+                      decoration: const InputDecoration(hintText: '目标项目'),
                       items: targets
                           .map((project) => DropdownMenuItem(
                               value: project.id, child: Text(project.name)))

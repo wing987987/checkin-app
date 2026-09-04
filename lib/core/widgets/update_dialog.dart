@@ -22,7 +22,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
         canPop: !widget.version.forceUpdate && !downloading,
         child: AlertDialog(
           title: const Row(children: [
-            Icon(Icons.system_update, color: Color(0xFF2B7FFF)),
+            Icon(Icons.system_update, color: Color(0xFF165DFF)),
             SizedBox(width: 8),
             Text('发现新版本'),
           ]),
@@ -34,7 +34,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 alignment: Alignment.centerLeft,
                 child: Text('新版本：${widget.version.versionName}',
                     style: const TextStyle(
-                        color: Color(0xFF2B7FFF),
+                        color: Color(0xFF165DFF),
                         fontWeight: FontWeight.w600))),
             if (widget.version.releaseNotes.isNotEmpty) ...[
               const SizedBox(height: 14),
@@ -42,7 +42,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                      color: const Color(0xFFF3F6FA),
+                      color: const Color(0xFFF8F8FA),
                       borderRadius: BorderRadius.circular(8)),
                   child: Text(widget.version.releaseNotes)),
             ],

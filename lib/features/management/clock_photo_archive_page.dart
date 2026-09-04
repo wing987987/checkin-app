@@ -58,7 +58,7 @@ class _ClockPhotoArchivePageState extends State<ClockPhotoArchivePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF3F6FA),
+        backgroundColor: const Color(0xFFF8F8FA),
         appBar: AppBar(title: const Text('打卡照片归档')),
         body: Column(children: [
           Container(

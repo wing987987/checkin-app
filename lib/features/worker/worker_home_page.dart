@@ -17,6 +17,8 @@ import '../../core/widgets/dialog_scroll_view.dart';
 import 'worker_location_map_page.dart';
 import 'package:latlong2/latlong.dart';
 import 'clock_camera_page.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_background.dart';
 
 class WorkerHomePage extends StatefulWidget {
   const WorkerHomePage({super.key});
@@ -76,14 +78,17 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                   icon: const Icon(Icons.assessment)),
               IconButton(onPressed: _load, icon: const Icon(Icons.refresh)),
             ]),
-        body: loading
-            ? const Center(child: CircularProgressIndicator())
-            : error != null
-                ? Center(
-                    child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(error!, textAlign: TextAlign.center)))
-                : _content(),
+        body: AppBackground(
+            child: loading
+                ? const Center(child: CircularProgressIndicator())
+                : error != null
+                    ? AppEmptyState(
+                        icon: Icons.cloud_off_outlined,
+                        title: '排班加载失败',
+                        description: error!,
+                        onRetry: _load,
+                      )
+                    : _content()),
       );
   Widget _content() {
     final value = schedule!;
@@ -91,13 +96,28 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.all(16), children: [
           Card(
+              margin: EdgeInsets.zero,
               child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(value.projectName,
-                            style: Theme.of(context).textTheme.headlineSmall),
+                        Row(children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                                color: AppColors.soft,
+                                borderRadius: BorderRadius.circular(8)),
+                            child: const Icon(Icons.apartment_outlined,
+                                color: AppColors.primary),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: Text(value.projectName,
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge)),
+                        ]),
                         const SizedBox(height: 8),
                         Text('${value.teamName} · ${value.shiftName}'),
                         Text(
@@ -120,10 +140,10 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                           ? Icons.check_circle
                           : Icons.warning,
                   color: record == null
-                      ? null
+                      ? AppColors.textTertiary
                       : record.countable
-                          ? Colors.green
-                          : Colors.orange),
+                          ? AppColors.success
+                          : AppColors.warning),
               title: Text(point.name),
               subtitle: Text(
                   '标准时间 ${point.expectedTime}${point.dayOffset == 1 ? '（次日）' : ''}'),
@@ -208,7 +228,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
               Text(
                 inside ? '当前在项目打卡范围内' : '当前在围栏外，提交会产生异常',
                 style: TextStyle(
-                    color: inside ? Colors.green : Colors.orange,
+                    color: inside ? AppColors.success : AppColors.warning,
                     fontWeight: FontWeight.w600),
               ),
             ],

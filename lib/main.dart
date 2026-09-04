@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'features/auth/login_page.dart';
 import 'features/home/home_page.dart';
 import 'providers/auth_provider.dart';
 import 'services/app_update_service.dart';
 import 'core/widgets/update_dialog.dart';
+import 'core/theme/app_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    statusBarBrightness: Brightness.light,
+    systemNavigationBarColor: Color(0xFFF8F8FA),
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
   runApp(
     MultiProvider(
       providers: [ChangeNotifierProvider(create: (_) => AuthProvider())],
@@ -23,10 +33,7 @@ class CheckinApp extends StatelessWidget {
     return MaterialApp(
       title: '昭臣打卡',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2B7FFF)),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
       home: const AuthWrapper(),
     );
   }

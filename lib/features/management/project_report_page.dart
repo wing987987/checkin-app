@@ -7,6 +7,7 @@ import '../../models/attendance_report.dart';
 import '../../models/checkin_project.dart';
 import '../../core/widgets/zoomable_network_image.dart';
 import '../../services/management_service.dart';
+import '../../core/theme/app_theme.dart';
 
 enum _ProjectReportMode { day, month }
 
@@ -18,7 +19,7 @@ class ProjectReportPage extends StatefulWidget {
 }
 
 class _ProjectReportPageState extends State<ProjectReportPage> {
-  static const _blue = Color(0xFF2388F5);
+  static const _blue = Color(0xFF165DFF);
   DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime selectedDate = DateUtils.dateOnly(DateTime.now());
   _ProjectReportMode mode = _ProjectReportMode.day;
@@ -63,7 +64,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF3F6FA),
+        backgroundColor: const Color(0xFFF8F8FA),
         appBar: AppBar(
           title: Column(children: [
             const Text('项目考勤报表', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -97,31 +98,60 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                 style:
                     const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
             const Spacer(),
-            SegmentedButton<_ProjectReportMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: _ProjectReportMode.day, label: Text('日报')),
-                ButtonSegment(
-                    value: _ProjectReportMode.month, label: Text('月报')),
-              ],
-              selected: {mode},
-              onSelectionChanged: (value) => setState(() => mode = value.first),
-              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                  color: AppColors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(10)),
+              child: SegmentedButton<_ProjectReportMode>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                      value: _ProjectReportMode.day, label: Text('日报')),
+                  ButtonSegment(
+                      value: _ProjectReportMode.month, label: Text('月报')),
+                ],
+                selected: {mode},
+                onSelectionChanged: (value) =>
+                    setState(() => mode = value.first),
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? AppColors.primary
+                          : AppColors.textSecondary),
+                  backgroundColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? Colors.white
+                          : Colors.transparent),
+                  side: const WidgetStatePropertyAll(BorderSide.none),
+                  shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8))),
+                ),
+              ),
             ),
           ]),
           const SizedBox(height: 12),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            IconButton.filledTonal(
-                onPressed: () => _moveMonth(-1),
-                icon: const Icon(Icons.chevron_left)),
+            _monthButton(Icons.chevron_left, () => _moveMonth(-1)),
             Text('${month.month}月',
                 style:
                     const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-            IconButton.filledTonal(
-                onPressed: () => _moveMonth(1),
-                icon: const Icon(Icons.chevron_right)),
+            _monthButton(Icons.chevron_right, () => _moveMonth(1)),
           ]),
         ]),
+      );
+
+  Widget _monthButton(IconData icon, VoidCallback action) => IconButton(
+        onPressed: action,
+        icon: Icon(icon, size: 22),
+        style: IconButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          backgroundColor: AppColors.soft,
+          minimumSize: const Size(44, 44),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
       );
 
   Widget _dayView() => ListView(
@@ -254,9 +284,12 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                   style: const TextStyle(fontWeight: FontWeight.w600)),
               subtitle: Text(
                   '${day.teamName} · ${day.shiftName}\n工时 ${_hours(day.workHours)} · 加班 ${_hours(day.overtimeHours)}'),
-              trailing: day.status == 'normal'
-                  ? const Chip(label: Text('正常'))
-                  : const Chip(label: Text('异常')),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                _statusTag(day.status == 'normal',
+                    day.status == 'normal' ? '正常' : '异常'),
+                const SizedBox(width: 4),
+                const Icon(Icons.expand_more, color: AppColors.textTertiary),
+              ]),
               childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               children: [
                 ...day.clocks.map((clock) => ListTile(
@@ -408,8 +441,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
               focusNode: reasonFocus,
               autofocus: true,
               maxLines: 3,
-              decoration: const InputDecoration(
-                  labelText: '补卡原因（必填）', hintText: '请输入本次补卡原因'),
+              decoration: const InputDecoration(hintText: '请输入补卡原因（必填）'),
             ),
           ]),
           actions: [
@@ -610,8 +642,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
               focusNode: reasonFocus,
               autofocus: true,
               maxLines: 3,
-              decoration: const InputDecoration(
-                  labelText: '补卡原因（必填）', hintText: '请输入本次补加班卡原因'),
+              decoration: const InputDecoration(hintText: '请输入补加班卡原因（必填）'),
             ),
           ]),
           actions: [
@@ -715,9 +746,8 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                 subtitle: Text(
                     '${worker.teamName} · 出勤 ${worker.attendanceDays}天\n工数 ${worker.workUnits} · 工时 ${_hours(worker.workHours)} · 加班 ${_hours(worker.overtimeHours)}'),
                 isThreeLine: true,
-                trailing: worker.anomalyDays > 0
-                    ? Chip(label: Text('异常 ${worker.anomalyDays}'))
-                    : const Chip(label: Text('正常')),
+                trailing: _statusTag(worker.anomalyDays == 0,
+                    worker.anomalyDays > 0 ? '异常 ${worker.anomalyDays}' : '正常'),
               ))),
       ],
     );
@@ -729,12 +759,57 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
   }
 
   Widget _metric(String value, String label, Color color) => Column(children: [
-        Text(value,
-            style: TextStyle(
-                color: color, fontSize: 22, fontWeight: FontWeight.w700)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text.rich(TextSpan(children: _metricSpans(value, color))),
+        ),
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(color: Colors.grey)),
       ]);
+
+  List<InlineSpan> _metricSpans(String value, Color color) {
+    final spans = <InlineSpan>[];
+    final unitPattern = RegExp(r'(小时|分钟)');
+    var start = 0;
+    for (final match in unitPattern.allMatches(value)) {
+      if (match.start > start) {
+        spans.add(TextSpan(
+          text: value.substring(start, match.start),
+          style: TextStyle(
+              color: color, fontSize: 22, fontWeight: FontWeight.w700),
+        ));
+      }
+      spans.add(TextSpan(
+        text: match.group(0),
+        style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w500),
+      ));
+      start = match.end;
+    }
+    if (start < value.length) {
+      spans.add(TextSpan(
+        text: value.substring(start),
+        style:
+            TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w700),
+      ));
+    }
+    return spans;
+  }
+
+  Widget _statusTag(bool normal, String label) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: normal ? const Color(0xFFE6FFEA) : const Color(0xFFFFECEC),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: normal ? AppColors.success : AppColors.danger,
+                fontSize: 12,
+                fontWeight: FontWeight.w500)),
+      );
 
   Widget _surface({required Widget child, EdgeInsetsGeometry? padding}) =>
       Container(
@@ -779,7 +854,7 @@ class _AttendanceGauge extends StatelessWidget {
           padding: const EdgeInsets.only(top: 45),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text('正常 $normal',
-                style: const TextStyle(color: Color(0xFF2388F5), fontSize: 18)),
+                style: const TextStyle(color: Color(0xFF165DFF), fontSize: 18)),
             Text('异常 $abnormal',
                 style: TextStyle(
                     color: abnormal > 0 ? Colors.redAccent : Colors.grey,
@@ -815,7 +890,7 @@ class _GaugePainter extends CustomPainter {
         normalAngle,
         false,
         Paint()
-          ..color = const Color(0xFF2388F5)
+          ..color = const Color(0xFF165DFF)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 14
           ..strokeCap = StrokeCap.round);

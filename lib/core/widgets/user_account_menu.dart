@@ -156,7 +156,7 @@ class _UserAccountMenuState extends State<UserAccountMenu> {
           SizedBox(
               width: 66,
               child: Text(label,
-                  style: const TextStyle(color: Color(0xFF747D88)))),
+                  style: const TextStyle(color: Color(0xFF62636A)))),
           Expanded(child: SelectableText(value)),
         ]),
       );

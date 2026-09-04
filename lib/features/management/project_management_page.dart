@@ -222,7 +222,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               DropdownButtonFormField<int>(
                 initialValue: worker.workerId,
-                decoration: const InputDecoration(labelText: '工人'),
+                decoration: const InputDecoration(hintText: '工人'),
                 items: eligibleWorkers
                     .map((w) => DropdownMenuItem(
                         value: w.workerId,
@@ -241,10 +241,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   }
                 },
               ),
+              const SizedBox(height: 12),
               DropdownButtonFormField<int>(
                 key: ValueKey(worker.shiftId),
                 initialValue: checkpoint.id,
-                decoration: const InputDecoration(labelText: '班次检查点'),
+                decoration: const InputDecoration(hintText: '班次检查点'),
                 items: checkpoints
                     .map((p) => DropdownMenuItem(
                         value: p.id,
@@ -253,6 +254,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 onChanged: (id) => setLocal(() =>
                     checkpoint = checkpoints.firstWhere((p) => p.id == id)),
               ),
+              const SizedBox(height: 12),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('补卡时间'),
@@ -274,10 +276,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   }
                 },
               ),
+              const SizedBox(height: 12),
               TextField(
                   controller: reason,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: '补卡原因（必填）')),
+                  decoration: const InputDecoration(hintText: '补卡原因（必填）')),
             ]),
           ),
           actions: [
@@ -321,22 +324,29 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         builder: (ctx) => StatefulBuilder(
             builder: (_, setLocal) => AlertDialog(
                     title: const Text('新增班组'),
-                    content: Column(mainAxisSize: MainAxisSize.min, children: [
-                      TextField(
-                          controller: controller,
-                          autofocus: true,
-                          decoration: const InputDecoration(labelText: '班组名称')),
-                      DropdownButtonFormField<int>(
-                        value: shiftId,
-                        decoration: const InputDecoration(labelText: '默认班次'),
-                        items: shifts
-                            .map((shift) => DropdownMenuItem(
-                                value: shift.id, child: Text(shift.name)))
-                            .toList(),
-                        onChanged: (value) =>
-                            setLocal(() => shiftId = value ?? shiftId),
-                      ),
-                    ]),
+                    content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _fieldLabel('班组名称'),
+                          TextField(
+                              controller: controller,
+                              autofocus: true,
+                              decoration:
+                                  const InputDecoration(hintText: '请输入班组名称')),
+                          const SizedBox(height: 16),
+                          _fieldLabel('默认班次'),
+                          DropdownButtonFormField<int>(
+                            value: shiftId,
+                            decoration: const InputDecoration(),
+                            items: shifts
+                                .map((shift) => DropdownMenuItem(
+                                    value: shift.id, child: Text(shift.name)))
+                                .toList(),
+                            onChanged: (value) =>
+                                setLocal(() => shiftId = value ?? shiftId),
+                          ),
+                        ]),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
@@ -376,69 +386,71 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
             builder: (_, setLocal) => AlertDialog(
                     title: const Text('新增班次'),
                     content: DialogScrollView(
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
-                      TextField(
-                          controller: name,
-                          decoration: const InputDecoration(labelText: '班次名称')),
-                      DropdownButtonFormField<String>(
-                          initialValue: type,
-                          decoration: const InputDecoration(labelText: '班次类型'),
-                          items: const [
-                            DropdownMenuItem(value: 'day', child: Text('白班')),
-                            DropdownMenuItem(value: 'night', child: Text('夜班')),
-                          ],
-                          onChanged: (v) => setLocal(() {
-                                type = v ?? 'day';
-                                if (type == 'night') {
-                                  start = const TimeOfDay(hour: 21, minute: 0);
-                                  end = const TimeOfDay(hour: 5, minute: 30);
-                                } else {
-                                  start = const TimeOfDay(hour: 6, minute: 30);
-                                  end = const TimeOfDay(hour: 17, minute: 30);
-                                }
-                              })),
-                      ListTile(
-                          title: const Text('上班时间'),
-                          trailing: Text(start.format(ctx)),
-                          onTap: () async {
-                            final v = await showTimePicker(
-                                context: ctx, initialTime: start);
-                            if (v != null) setLocal(() => start = v);
-                          }),
-                      if (type == 'day')
-                        ListTile(
-                            title: const Text('中午下班'),
-                            trailing: Text(breakStart.format(ctx)),
-                            onTap: () async {
-                              final v = await showTimePicker(
-                                  context: ctx, initialTime: breakStart);
-                              if (v != null) setLocal(() => breakStart = v);
-                            }),
-                      if (type == 'day')
-                        ListTile(
-                            title: const Text('下午上班'),
-                            trailing: Text(breakEnd.format(ctx)),
-                            onTap: () async {
-                              final v = await showTimePicker(
-                                  context: ctx, initialTime: breakEnd);
-                              if (v != null) setLocal(() => breakEnd = v);
-                            }),
-                      ListTile(
-                          title: Text(type == 'night' ? '下班时间（次日）' : '下班时间'),
-                          trailing: Text(end.format(ctx)),
-                          onTap: () async {
-                            final v = await showTimePicker(
-                                context: ctx, initialTime: end);
-                            if (v != null) setLocal(() => end = v);
-                          }),
-                      const ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.timer_outlined),
-                        title: Text('固定打卡窗口'),
-                        subtitle: Text('上班：提前30分钟至延后5分钟\n下班：提前5分钟至延后30分钟'),
-                      ),
-                    ])),
+                        child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          _fieldLabel('班次名称'),
+                          TextField(
+                              controller: name,
+                              decoration:
+                                  const InputDecoration(hintText: '请输入班次名称')),
+                          const SizedBox(height: 16),
+                          _fieldLabel('班次类型'),
+                          DropdownButtonFormField<String>(
+                              initialValue: type,
+                              decoration: const InputDecoration(),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'day', child: Text('白班')),
+                                DropdownMenuItem(
+                                    value: 'night', child: Text('夜班')),
+                              ],
+                              onChanged: (v) => setLocal(() {
+                                    type = v ?? 'day';
+                                    if (type == 'night') {
+                                      start =
+                                          const TimeOfDay(hour: 21, minute: 0);
+                                      end =
+                                          const TimeOfDay(hour: 5, minute: 30);
+                                    } else {
+                                      start =
+                                          const TimeOfDay(hour: 6, minute: 30);
+                                      end =
+                                          const TimeOfDay(hour: 17, minute: 30);
+                                    }
+                                  })),
+                          const SizedBox(height: 16),
+                          _timeTile(ctx, '上班时间', start,
+                              (v) => setLocal(() => start = v)),
+                          if (type == 'day')
+                            _timeTile(ctx, '中午下班', breakStart,
+                                (v) => setLocal(() => breakStart = v)),
+                          if (type == 'day')
+                            _timeTile(ctx, '下午上班', breakEnd,
+                                (v) => setLocal(() => breakEnd = v)),
+                          _timeTile(ctx, type == 'night' ? '下班时间（次日）' : '下班时间',
+                              end, (v) => setLocal(() => end = v)),
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3F3F5),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.timer_outlined, size: 20),
+                                SizedBox(width: 8),
+                                Expanded(
+                                    child: Text(
+                                        '固定打卡窗口\n上班：提前30分钟至延后5分钟\n下班：提前5分钟至延后30分钟')),
+                              ],
+                            ),
+                          ),
+                        ])),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
@@ -496,32 +508,36 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                             Column(mainAxisSize: MainAxisSize.min, children: [
                       TextField(
                           controller: realName,
-                          decoration: const InputDecoration(labelText: '姓名')),
+                          decoration: const InputDecoration(hintText: '姓名')),
+                      const SizedBox(height: 12),
                       TextField(
                           controller: username,
-                          decoration:
-                              const InputDecoration(labelText: '登录用户名')),
+                          decoration: const InputDecoration(hintText: '登录用户名')),
+                      const SizedBox(height: 12),
                       TextField(
                           controller: password,
                           obscureText: true,
-                          decoration: const InputDecoration(labelText: '初始密码')),
+                          decoration: const InputDecoration(hintText: '初始密码')),
+                      const SizedBox(height: 12),
                       TextField(
                           controller: phone,
                           keyboardType: TextInputType.phone,
                           decoration:
-                              const InputDecoration(labelText: '手机号（选填）')),
+                              const InputDecoration(hintText: '手机号（选填）')),
+                      const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
                           initialValue: teamId,
-                          decoration: const InputDecoration(labelText: '班组'),
+                          decoration: const InputDecoration(hintText: '班组'),
                           items: teams
                               .map((t) => DropdownMenuItem(
                                   value: t.id, child: Text(t.name)))
                               .toList(),
                           onChanged: (v) =>
                               setLocal(() => teamId = v ?? teamId)),
+                      const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
                           initialValue: shiftId,
-                          decoration: const InputDecoration(labelText: '班次'),
+                          decoration: const InputDecoration(hintText: '班次'),
                           items: shifts
                               .map((s) => DropdownMenuItem(
                                   value: s.id, child: Text(s.name)))
@@ -571,16 +587,17 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                     content: Column(mainAxisSize: MainAxisSize.min, children: [
                       DropdownButtonFormField<int>(
                           initialValue: teamId,
-                          decoration: const InputDecoration(labelText: '班组'),
+                          decoration: const InputDecoration(hintText: '班组'),
                           items: teams
                               .map((t) => DropdownMenuItem(
                                   value: t.id, child: Text(t.name)))
                               .toList(),
                           onChanged: (v) =>
                               setLocal(() => teamId = v ?? teamId)),
+                      const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
                           initialValue: shiftId,
-                          decoration: const InputDecoration(labelText: '班次'),
+                          decoration: const InputDecoration(hintText: '班次'),
                           items: shifts
                               .map((s) => DropdownMenuItem(
                                   value: s.id, child: Text(s.name)))
@@ -618,26 +635,33 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (_, setLocal) => AlertDialog(
           title: const Text('编辑项目'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(
-                controller: name,
-                decoration: const InputDecoration(labelText: '项目名称')),
-            DropdownButtonFormField<int>(
-              initialValue: radius,
-              decoration: const InputDecoration(labelText: '打卡范围'),
-              items: const [100, 200, 300, 500]
-                  .map((v) => DropdownMenuItem(value: v, child: Text('$v 米')))
-                  .toList(),
-              onChanged: (v) => setLocal(() => radius = v ?? radius),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('项目启用'),
-              subtitle: const Text('停用后工人不能打卡'),
-              value: active,
-              onChanged: (v) => setLocal(() => active = v),
-            ),
-          ]),
+          content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fieldLabel('项目名称'),
+                TextField(
+                    controller: name,
+                    decoration: const InputDecoration(hintText: '请输入项目名称')),
+                const SizedBox(height: 16),
+                _fieldLabel('打卡范围'),
+                DropdownButtonFormField<int>(
+                  initialValue: radius,
+                  decoration: const InputDecoration(),
+                  items: const [100, 200, 300, 500]
+                      .map((v) =>
+                          DropdownMenuItem(value: v, child: Text('$v 米')))
+                      .toList(),
+                  onChanged: (v) => setLocal(() => radius = v ?? radius),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('项目启用'),
+                  subtitle: const Text('停用后工人不能打卡'),
+                  value: active,
+                  onChanged: (v) => setLocal(() => active = v),
+                ),
+              ]),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -697,47 +721,68 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         builder: (_, setLocal) => AlertDialog(
           title: const Text('编辑班次'),
           content: DialogScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
-                  controller: name,
-                  decoration: const InputDecoration(labelText: '班次名称')),
-              DropdownButtonFormField<String>(
-                initialValue: type,
-                decoration: const InputDecoration(labelText: '班次类型'),
-                items: const [
-                  DropdownMenuItem(value: 'day', child: Text('白班')),
-                  DropdownMenuItem(value: 'night', child: Text('夜班')),
-                ],
-                onChanged: (v) => setLocal(() {
-                  final nextType = v ?? type;
-                  if (nextType != type) {
-                    type = nextType;
-                    if (type == 'night') {
-                      start = const TimeOfDay(hour: 21, minute: 0);
-                      end = const TimeOfDay(hour: 5, minute: 30);
-                    } else {
-                      start = const TimeOfDay(hour: 6, minute: 30);
-                      end = const TimeOfDay(hour: 17, minute: 30);
-                    }
-                  }
-                }),
-              ),
-              _timeTile(ctx, '上班时间', start, (v) => setLocal(() => start = v)),
-              if (type == 'day') ...[
-                _timeTile(ctx, '中午下班', breakStart,
-                    (v) => setLocal(() => breakStart = v)),
-                _timeTile(
-                    ctx, '下午上班', breakEnd, (v) => setLocal(() => breakEnd = v)),
-              ],
-              _timeTile(ctx, type == 'night' ? '下班时间（次日）' : '下班时间',
-                  end, (v) => setLocal(() => end = v)),
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.timer_outlined),
-                title: Text('固定打卡窗口'),
-                subtitle: Text('上班：提前30分钟至延后5分钟\n下班：提前5分钟至延后30分钟'),
-              ),
-            ]),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _fieldLabel('班次名称'),
+                  TextField(
+                      controller: name,
+                      decoration: const InputDecoration(hintText: '请输入班次名称')),
+                  const SizedBox(height: 16),
+                  _fieldLabel('班次类型'),
+                  DropdownButtonFormField<String>(
+                    initialValue: type,
+                    decoration: const InputDecoration(),
+                    items: const [
+                      DropdownMenuItem(value: 'day', child: Text('白班')),
+                      DropdownMenuItem(value: 'night', child: Text('夜班')),
+                    ],
+                    onChanged: (v) => setLocal(() {
+                      final nextType = v ?? type;
+                      if (nextType != type) {
+                        type = nextType;
+                        if (type == 'night') {
+                          start = const TimeOfDay(hour: 21, minute: 0);
+                          end = const TimeOfDay(hour: 5, minute: 30);
+                        } else {
+                          start = const TimeOfDay(hour: 6, minute: 30);
+                          end = const TimeOfDay(hour: 17, minute: 30);
+                        }
+                      }
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  _timeTile(
+                      ctx, '上班时间', start, (v) => setLocal(() => start = v)),
+                  if (type == 'day') ...[
+                    _timeTile(ctx, '中午下班', breakStart,
+                        (v) => setLocal(() => breakStart = v)),
+                    _timeTile(ctx, '下午上班', breakEnd,
+                        (v) => setLocal(() => breakEnd = v)),
+                  ],
+                  _timeTile(ctx, type == 'night' ? '下班时间（次日）' : '下班时间', end,
+                      (v) => setLocal(() => end = v)),
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F3F5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.timer_outlined, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                            child: Text(
+                                '固定打卡窗口\n上班：提前30分钟至延后5分钟\n下班：提前5分钟至延后30分钟')),
+                      ],
+                    ),
+                  ),
+                ]),
           ),
           actions: [
             TextButton(
@@ -782,17 +827,41 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   Widget _timeTile(BuildContext context, String label, TimeOfDay value,
       ValueChanged<TimeOfDay> onChanged) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      trailing: Text(value.format(context)),
-      onTap: () async {
-        final selected =
-            await showTimePicker(context: context, initialTime: value);
-        if (selected != null) onChanged(selected);
-      },
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () async {
+          final selected =
+              await showTimePicker(context: context, initialTime: value);
+          if (selected != null) onChanged(selected);
+        },
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 52),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFE7E7EA)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(children: [
+            Expanded(child: Text(label)),
+            Text(_time(value).substring(0, 5),
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(width: 8),
+            const Icon(Icons.schedule_outlined,
+                size: 20, color: Color(0xFF92939A)),
+          ]),
+        ),
+      ),
     );
   }
+
+  Widget _fieldLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+      );
 
   Future<void> _toggleShift(CheckinShift shift) async {
     final next = shift.status == 1 ? 0 : 1;
@@ -830,22 +899,29 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       builder: (ctx) => StatefulBuilder(
           builder: (_, setLocal) => AlertDialog(
                 title: const Text('编辑班组'),
-                content: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextField(
-                      controller: name,
-                      autofocus: true,
-                      decoration: const InputDecoration(labelText: '班组名称')),
-                  DropdownButtonFormField<int>(
-                    value: shiftId,
-                    decoration: const InputDecoration(labelText: '默认班次'),
-                    items: shifts
-                        .map((shift) => DropdownMenuItem(
-                            value: shift.id, child: Text(shift.name)))
-                        .toList(),
-                    onChanged: (value) =>
-                        setLocal(() => shiftId = value ?? shiftId),
-                  ),
-                ]),
+                content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _fieldLabel('班组名称'),
+                      TextField(
+                          controller: name,
+                          autofocus: true,
+                          decoration:
+                              const InputDecoration(hintText: '请输入班组名称')),
+                      const SizedBox(height: 16),
+                      _fieldLabel('默认班次'),
+                      DropdownButtonFormField<int>(
+                        value: shiftId,
+                        decoration: const InputDecoration(),
+                        items: shifts
+                            .map((shift) => DropdownMenuItem(
+                                value: shift.id, child: Text(shift.name)))
+                            .toList(),
+                        onChanged: (value) =>
+                            setLocal(() => shiftId = value ?? shiftId),
+                      ),
+                    ]),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
@@ -1009,11 +1085,12 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
               controller: name,
-              decoration: const InputDecoration(labelText: '姓名')),
+              decoration: const InputDecoration(hintText: '姓名')),
+          const SizedBox(height: 12),
           TextField(
               controller: phone,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(labelText: '手机号（选填）')),
+              decoration: const InputDecoration(hintText: '手机号（选填）')),
         ]),
         actions: [
           TextButton(
@@ -1105,9 +1182,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     final startMinutes = _minutes(start);
     final endMinutes = _minutes(end);
     if (type == 'night') {
-      return endMinutes < startMinutes
-          ? null
-          : '夜班下班时间必须早于上班时间，下班时间按次日计算';
+      return endMinutes < startMinutes ? null : '夜班下班时间必须早于上班时间，下班时间按次日计算';
     }
     if (startMinutes >= endMinutes) {
       return '白班上班时间必须早于下班时间';

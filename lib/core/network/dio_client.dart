@@ -28,11 +28,13 @@ class DioClient {
         handler.next(options);
       },
       onResponse: (response, handler) {
-        print('[Dio] 响应: ${response.requestOptions.path} → ${response.statusCode}');
+        print(
+            '[Dio] 响应: ${response.requestOptions.path} → ${response.statusCode}');
         handler.next(response);
       },
       onError: (error, handler) async {
-        print('[Dio] 错误: ${error.requestOptions.path} → ${error.message}, 状态码: ${error.response?.statusCode}');
+        print(
+            '[Dio] 错误: ${error.requestOptions.path} → ${error.message}, 状态码: ${error.response?.statusCode}');
         if (error.response?.statusCode == 401 &&
             error.requestOptions.path != '/api/ck/auth/refresh' &&
             error.requestOptions.extra['tokenRetried'] != true) {
@@ -95,7 +97,8 @@ class DioClient {
       });
       final data = response.data is Map ? response.data['data'] : null;
       final token = data is Map ? data['token'] as String? : null;
-      final newRefreshToken = data is Map ? data['refreshToken'] as String? : null;
+      final newRefreshToken =
+          data is Map ? data['refreshToken'] as String? : null;
       if (token == null || newRefreshToken == null) return false;
       _cachedToken = token;
       await prefs.setString('token', token);

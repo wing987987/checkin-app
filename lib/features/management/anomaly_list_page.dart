@@ -136,16 +136,45 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                             style: TextStyle(height: 1.5)),
                       ])),
                 ),
+                actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                 actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('取消')),
-                  OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx, 'confirm'),
-                      child: const Text('确认原记录有效')),
-                  FilledButton(
-                      onPressed: () => Navigator.pop(ctx, 'correct'),
-                      child: const Text('修正时间'))
+                  SizedBox(
+                    width: double.infinity,
+                    child: Row(children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextButton(
+                            style: TextButton.styleFrom(
+                                minimumSize: const Size(0, 44),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4)),
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('取消')),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 5,
+                        child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4)),
+                            onPressed: () => Navigator.pop(ctx, 'confirm'),
+                            child: const FittedBox(
+                                fit: BoxFit.scaleDown, child: Text('确认原记录有效'))),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 3,
+                        child: FilledButton(
+                            style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 4)),
+                            onPressed: () => Navigator.pop(ctx, 'correct'),
+                            child: const FittedBox(
+                                fit: BoxFit.scaleDown, child: Text('修正时间'))),
+                      ),
+                    ]),
+                  ),
                 ]));
     if (action == null || !mounted) return;
     final reason = TextEditingController();
@@ -181,8 +210,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                           controller: reason,
                           maxLines: 3,
                           decoration: const InputDecoration(
-                              labelText: '处理原因（必填）',
-                              hintText: '例如：现场确认工人实际在岗')),
+                              hintText: '处理原因（必填），例如：现场确认工人实际在岗')),
                     ]),
                     actions: [
                       TextButton(
@@ -347,7 +375,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
               focusNode: reasonFocus,
               autofocus: true,
               maxLines: 3,
-              decoration: const InputDecoration(labelText: '补卡原因（必填）'),
+              decoration: const InputDecoration(hintText: '补卡原因（必填）'),
             ),
           ]),
           actions: [

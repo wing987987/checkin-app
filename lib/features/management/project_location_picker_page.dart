@@ -31,6 +31,7 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
   int _radius = 100;
   bool _locating = true;
   bool _saving = false;
+  bool _mapReady = false;
   bool _permissionPermanentlyDenied = false;
   String? _locationError;
 
@@ -97,9 +98,7 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
 
       final point = LatLng(position.latitude, position.longitude);
       setState(() => _center = point);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _mapController.move(point, _zoomForRadius(_radius));
-      });
+      _moveMapIfReady(point, _zoomForRadius(_radius));
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -174,7 +173,7 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                     controller: _nameController,
                     textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(
-                      labelText: '项目名称',
+                      hintText: '项目名称',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.apartment),
                     ),
@@ -206,7 +205,7 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                     DropdownButtonFormField<int>(
                       initialValue: _radius,
                       decoration: const InputDecoration(
-                        labelText: '打卡范围',
+                        hintText: '打卡范围',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.radar),
                       ),
@@ -220,7 +219,7 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                         if (value == null) return;
                         setState(() => _radius = value);
                         if (_center != null) {
-                          _mapController.move(_center!, _zoomForRadius(value));
+                          _moveMapIfReady(_center!, _zoomForRadius(value));
                         }
                       },
                     ),
@@ -315,6 +314,13 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
                     initialZoom: _zoomForRadius(_radius),
                     minZoom: 3,
                     maxZoom: 18,
+                    onMapReady: () {
+                      _mapReady = true;
+                      final center = _center;
+                      if (mounted && center != null) {
+                        _moveMapIfReady(center, _zoomForRadius(_radius));
+                      }
+                    },
                     onPositionChanged: (camera, hasGesture) {
                       if (hasGesture && mounted) {
                         setState(() => _center = camera.center);
@@ -420,5 +426,10 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
     if (radius <= 3000) return 14;
     if (radius <= 10000) return 12;
     return 10;
+  }
+
+  void _moveMapIfReady(LatLng center, double zoom) {
+    if (!mounted || !_mapReady) return;
+    _mapController.move(center, zoom);
   }
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/attendance_report.dart';
 import '../../core/widgets/zoomable_network_image.dart';
+import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/worker_service.dart';
 
@@ -16,8 +17,8 @@ class WorkerReportPage extends StatefulWidget {
 }
 
 class _WorkerReportPageState extends State<WorkerReportPage> {
-  static const _blue = Color(0xFF2388F5);
-  static const _background = Color(0xFFF3F6FA);
+  static const _blue = Color(0xFF165DFF);
+  static const _background = Color(0xFFF8F8FA);
   DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime selectedDate = DateUtils.dateOnly(DateTime.now());
   _ReportMode mode = _ReportMode.day;
@@ -76,7 +77,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
               style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w400,
-                  color: Color(0xFF7A838E)),
+                  color: Color(0xFF62636A)),
             ),
           ]),
           centerTitle: true,
@@ -122,6 +123,10 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
                     setState(() => mode = value.first),
                 style: ButtonStyle(
                   visualDensity: VisualDensity.compact,
+                  foregroundColor: WidgetStateProperty.resolveWith((states) =>
+                      states.contains(WidgetState.selected)
+                          ? AppColors.primary
+                          : AppColors.textSecondary),
                   backgroundColor: WidgetStateProperty.resolveWith((states) =>
                       states.contains(WidgetState.selected)
                           ? Colors.white
@@ -144,12 +149,16 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
         ]),
       );
 
-  Widget _monthButton(IconData icon, VoidCallback action) => IconButton.filled(
+  Widget _monthButton(IconData icon, VoidCallback action) => IconButton(
         onPressed: action,
-        icon: Icon(icon),
+        icon: Icon(icon, size: 22),
         style: IconButton.styleFrom(
-            foregroundColor: const Color(0xFF59636F),
-            backgroundColor: const Color(0xFFF4F5F7)),
+          foregroundColor: AppColors.primary,
+          backgroundColor: AppColors.soft,
+          minimumSize: const Size(44, 44),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
       );
 
   Widget _errorView() => Center(
@@ -185,31 +194,31 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
           Expanded(
               child: Center(
                   child:
-                      Text('日', style: TextStyle(color: Color(0xFF8A929C))))),
+                      Text('日', style: TextStyle(color: Color(0xFF92939A))))),
           Expanded(
               child: Center(
                   child:
-                      Text('一', style: TextStyle(color: Color(0xFF8A929C))))),
+                      Text('一', style: TextStyle(color: Color(0xFF92939A))))),
           Expanded(
               child: Center(
                   child:
-                      Text('二', style: TextStyle(color: Color(0xFF8A929C))))),
+                      Text('二', style: TextStyle(color: Color(0xFF92939A))))),
           Expanded(
               child: Center(
                   child:
-                      Text('三', style: TextStyle(color: Color(0xFF8A929C))))),
+                      Text('三', style: TextStyle(color: Color(0xFF92939A))))),
           Expanded(
               child: Center(
                   child:
-                      Text('四', style: TextStyle(color: Color(0xFF8A929C))))),
+                      Text('四', style: TextStyle(color: Color(0xFF92939A))))),
           Expanded(
               child: Center(
                   child:
-                      Text('五', style: TextStyle(color: Color(0xFF8A929C))))),
+                      Text('五', style: TextStyle(color: Color(0xFF92939A))))),
           Expanded(
               child: Center(
                   child:
-                      Text('六', style: TextStyle(color: Color(0xFF8A929C))))),
+                      Text('六', style: TextStyle(color: Color(0xFF92939A))))),
         ]),
         const SizedBox(height: 8),
         GridView.builder(
@@ -283,10 +292,10 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
         padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(children: [
           const Icon(Icons.event_busy_outlined,
-              size: 42, color: Color(0xFFA5ADB7)),
+              size: 42, color: Color(0xFF92939A)),
           const SizedBox(height: 10),
           Text('${DateFormat('M月d日').format(selectedDate)}暂无考勤记录',
-              style: const TextStyle(color: Color(0xFF747D88))),
+              style: const TextStyle(color: Color(0xFF62636A))),
         ]),
       ));
     }
@@ -302,13 +311,13 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
       ]),
       const SizedBox(height: 6),
       Text('${day.projectName} · ${day.teamName} · ${day.shiftName}',
-          style: const TextStyle(color: Color(0xFF7A838E))),
+          style: const TextStyle(color: Color(0xFF62636A))),
       if (day.statusMessage.isNotEmpty) ...[
         const SizedBox(height: 4),
         Text(day.statusMessage,
             style: TextStyle(
                 color: day.status == 'normal'
-                    ? const Color(0xFF7A838E)
+                    ? const Color(0xFF62636A)
                     : Colors.orange[800])),
       ],
       const Divider(height: 28),
@@ -349,7 +358,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
                     color: warning ? Colors.orange : _blue)),
             if (index < count - 1)
               Expanded(
-                  child: Container(width: 2, color: const Color(0xFFE1E5EA))),
+                  child: Container(width: 2, color: const Color(0xFFE7E7EA))),
           ])),
       Expanded(
           child: Padding(
@@ -371,7 +380,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
           Text(_clockDescription(clock),
               style: TextStyle(
                   color:
-                      warning ? Colors.orange[800] : const Color(0xFF7A838E))),
+                      warning ? Colors.orange[800] : const Color(0xFF62636A))),
           if (clock.adjustmentAction.isNotEmpty)
             Text(
                 '${_adjustmentLabel(clock.adjustmentAction)}${clock.correctionReason.isEmpty ? '' : ' · 原因：${clock.correctionReason}'}',
@@ -541,7 +550,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
             : day.status == 'manual'
                 ? '人工工时'
                 : '异常';
-    final color = normal ? const Color(0xFF16A266) : Colors.orange[800]!;
+    final color = normal ? const Color(0xFF00B42A) : Colors.orange[800]!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -555,12 +564,44 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
 
   Widget _summaryMetric(String value, String label, Color color) =>
       Column(children: [
-        Text(value,
-            style: TextStyle(
-                color: color, fontSize: 24, fontWeight: FontWeight.w700)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text.rich(TextSpan(children: _metricSpans(value, color))),
+        ),
         const SizedBox(height: 5),
-        Text(label, style: const TextStyle(color: Color(0xFF747D88))),
+        Text(label, style: const TextStyle(color: Color(0xFF62636A))),
       ]);
+
+  List<InlineSpan> _metricSpans(String value, Color color) {
+    final spans = <InlineSpan>[];
+    final unitPattern = RegExp(r'(小时|分钟)');
+    var start = 0;
+    for (final match in unitPattern.allMatches(value)) {
+      if (match.start > start) {
+        spans.add(TextSpan(
+          text: value.substring(start, match.start),
+          style: TextStyle(
+              color: color, fontSize: 24, fontWeight: FontWeight.w700),
+        ));
+      }
+      spans.add(TextSpan(
+        text: match.group(0),
+        style: const TextStyle(
+            color: Color(0xFF62636A),
+            fontSize: 13,
+            fontWeight: FontWeight.w500),
+      ));
+      start = match.end;
+    }
+    if (start < value.length) {
+      spans.add(TextSpan(
+        text: value.substring(start),
+        style:
+            TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.w700),
+      ));
+    }
+    return spans;
+  }
 
   Widget _surface({required Widget child, EdgeInsetsGeometry? padding}) =>
       Container(
