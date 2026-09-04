@@ -5,7 +5,6 @@ import '../../providers/auth_provider.dart';
 import '../../services/worker_service.dart';
 import '../../core/utils/watermark_utils.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'worker_report_page.dart';
@@ -17,12 +16,7 @@ import '../../core/widgets/user_account_menu.dart';
 import '../../core/widgets/dialog_scroll_view.dart';
 import 'worker_location_map_page.dart';
 import 'package:latlong2/latlong.dart';
-
-class _TestClockOptions {
-  final DateTime clockTime;
-  final double offsetMeters;
-  const _TestClockOptions(this.clockTime, this.offsetMeters);
-}
+import 'clock_camera_page.dart';
 
 class WorkerHomePage extends StatefulWidget {
   const WorkerHomePage({super.key});
@@ -346,25 +340,17 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
     String? sourcePhotoPath;
     String? watermarkedPhotoPath;
     try {
-      final testOptions = EnvConfig.instance.showTestFeatures
-          ? await _showTestClockOptions()
-          : null;
-      if (EnvConfig.instance.showTestFeatures && testOptions == null) return;
       setState(() {
         clocking = true;
-        clockingStatus = testOptions == null ? '正在定位…' : '正在生成测试定位…';
+        clockingStatus = '正在定位…';
       });
-      final position =
-          testOptions == null ? await _getHighAccuracyPosition() : null;
-      final latitude = testOptions == null
-          ? position!.latitude
-          : value.gpsLat + testOptions.offsetMeters / 111320.0;
-      final longitude =
-          testOptions == null ? position!.longitude : value.gpsLng;
-      final accuracy = testOptions == null ? position!.accuracy : 0.0;
+      final position = await _getHighAccuracyPosition();
+      final latitude = position.latitude;
+      final longitude = position.longitude;
+      final accuracy = position.accuracy;
       final distance = Geolocator.distanceBetween(
           latitude, longitude, value.gpsLat, value.gpsLng);
-      if (mounted && position != null) {
+      if (mounted) {
         setState(() {
           previewPosition = position;
           previewDistance = distance;
@@ -390,17 +376,15 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                     ]));
         if (proceed != true) return;
       }
-      final photo = await ImagePicker().pickImage(
-          source: ImageSource.camera,
-          imageQuality: 88,
-          maxWidth: 1920,
-          requestFullMetadata: false);
-      if (photo == null) return;
-      sourcePhotoPath = photo.path;
-      final now = testOptions?.clockTime ?? DateTime.now();
+      if (!mounted) return;
+      final photoPath = await Navigator.push<String>(
+          context, MaterialPageRoute(builder: (_) => const ClockCameraPage()));
+      if (!mounted || photoPath == null) return;
+      sourcePhotoPath = photoPath;
+      final now = DateTime.now();
       setState(() => clockingStatus = '正在添加水印…');
-      final path =
-          await WatermarkUtils.addClockWatermark(await photo.readAsBytes(), [
+      final watermarked = await WatermarkUtils.addClockWatermark(
+          await File(photoPath).readAsBytes(), [
         overtime ? '加班打卡' : '班次打卡',
         value.projectName,
         user?.realName ?? user?.username ?? '',
@@ -408,11 +392,14 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         'GPS ${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
         'Distance ${distance.round()}m',
       ]);
-      watermarkedPhotoPath = path;
+      watermarkedPhotoPath = watermarked.path;
       await _deleteTemporaryFile(sourcePhotoPath);
       sourcePhotoPath = null;
-      if (mounted) setState(() => clockingStatus = '正在上传照片…');
-      final uploaded = await WorkerService.uploadPhoto(path);
+      if (mounted) {
+        setState(() =>
+            clockingStatus = '照片已压缩 ${watermarked.reductionPercent}%，正在上传…');
+      }
+      final uploaded = await WorkerService.uploadPhoto(watermarked.path);
       if (!uploaded.isSuccess || uploaded.data == null) {
         throw Exception(uploaded.message);
       }
@@ -482,70 +469,6 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         });
       }
     }
-  }
-
-  Future<_TestClockOptions?> _showTestClockOptions() async {
-    var selected = DateTime.now();
-    var offsetText = '0';
-    final result = await showDialog<_TestClockOptions>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) {
-        Future<void> chooseTime() async {
-          final date = await showDatePicker(
-              context: ctx,
-              initialDate: selected,
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2035));
-          if (date == null || !ctx.mounted) return;
-          final time = await showTimePicker(
-              context: ctx, initialTime: TimeOfDay.fromDateTime(selected));
-          if (time == null) return;
-          setDialogState(() => selected = DateTime(
-              date.year, date.month, date.day, time.hour, time.minute));
-        }
-
-        return AlertDialog(
-          title: const Text('测试打卡参数'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('模拟打卡时间'),
-              subtitle: Text(DateFormat('yyyy-MM-dd HH:mm').format(selected)),
-              trailing: const Icon(Icons.edit_calendar),
-              onTap: chooseTime,
-            ),
-            TextFormField(
-              initialValue: offsetText,
-              onChanged: (value) => offsetText = value,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: '距项目中心的偏移距离（米）',
-                helperText: '以项目中心向北计算测试坐标，0 表示项目中心',
-                suffixText: '米',
-              ),
-            ),
-          ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-            FilledButton(
-              onPressed: () {
-                final offset = double.tryParse(offsetText.trim());
-                if (offset == null || offset < 0 || offset > 100000) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(content: Text('请输入 0～100000 米的有效距离')));
-                  return;
-                }
-                Navigator.pop(ctx, _TestClockOptions(selected, offset));
-              },
-              child: const Text('确定并拍照'),
-            ),
-          ],
-        );
-      }),
-    );
-    return result;
   }
 
   Future<void> _deleteTemporaryFile(String? path) async {

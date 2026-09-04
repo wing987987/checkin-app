@@ -1,7 +1,7 @@
 name: checkin_app
 description: Worker clock-in app - GPS based attendance, shift recognition and monthly reports
 publish_to: 'none'
-version: 0.2.7+12
+version: 0.2.9+14
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -19,7 +19,8 @@ dependencies:
   geolocator: ^13.0.1
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  image_picker: ^1.0.7
+  camera: ^0.12.0+2
+  flutter_image_compress: ^2.5.1
   path_provider: ^2.1.1
   flutter_map_cache: ^2.1.0
   http_cache_file_store: ^2.0.2

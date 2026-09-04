@@ -5,6 +5,8 @@
       "name": "checkin-app (staging) - 默认本地测试",
       "request": "launch",
       "type": "dart",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}",
       "args": ["--flavor", "staging", "--dart-define=ENV=test"],
       "preLaunchTask": "adb reverse 8082"
     },
@@ -12,6 +14,8 @@
       "name": "checkin-app (prod) - 仅生产验证",
       "request": "launch",
       "type": "dart",
+      "program": "lib/main.dart",
+      "cwd": "${workspaceFolder}",
       "args": ["--flavor", "prod", "--dart-define=ENV=prod"],
       "preLaunchTask": "adb reverse 8082"
     }

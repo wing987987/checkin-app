@@ -18,7 +18,7 @@ class WorkerService {
       try {
         final form = FormData.fromMap({
           'file': await MultipartFile.fromFile(path,
-              filename: 'clock.png', contentType: DioMediaType('image', 'png'))
+              filename: 'clock.jpg', contentType: DioMediaType('image', 'jpeg'))
         });
         final response =
             await DioClient.instance.upload('/api/ck/files/clock-photo', form);

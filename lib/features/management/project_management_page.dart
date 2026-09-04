@@ -436,7 +436,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(Icons.timer_outlined),
                         title: Text('固定打卡窗口'),
-                        subtitle: Text('上班：提前30分钟至延后5分钟\n下班：标准时间至延后30分钟'),
+                        subtitle: Text('上班：提前30分钟至延后5分钟\n下班：提前5分钟至延后30分钟'),
                       ),
                     ])),
                     actions: [
@@ -735,7 +735,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.timer_outlined),
                 title: Text('固定打卡窗口'),
-                subtitle: Text('上班：提前30分钟至延后5分钟\n下班：标准时间至延后30分钟'),
+                subtitle: Text('上班：提前30分钟至延后5分钟\n下班：提前5分钟至延后30分钟'),
               ),
             ]),
           ),
