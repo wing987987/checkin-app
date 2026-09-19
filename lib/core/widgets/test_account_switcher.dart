@@ -31,9 +31,11 @@ class TestAccountSwitcher extends StatelessWidget {
                       context.read<AuthProvider>().username == item.username;
                   return ListTile(
                     leading: CircleAvatar(
-                      child: Icon(item.role == 'supervisor'
-                          ? Icons.manage_accounts
-                          : Icons.engineering),
+                      child: Icon(item.role == 'boss'
+                          ? Icons.admin_panel_settings
+                          : item.role == 'supervisor'
+                              ? Icons.manage_accounts
+                              : Icons.engineering),
                     ),
                     title: Text(item.name),
                     subtitle: Text('${item.roleLabel} · ${item.detail}'),

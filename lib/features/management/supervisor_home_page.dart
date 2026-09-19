@@ -8,6 +8,9 @@ import '../../models/checkin_project.dart';
 import '../../services/management_service.dart';
 import 'project_location_picker_page.dart';
 import 'project_management_page.dart';
+import 'supervisor_management_page.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 
 class SupervisorHomePage extends StatefulWidget {
   const SupervisorHomePage({super.key});
@@ -46,26 +49,39 @@ class _SupervisorHomePageState extends State<SupervisorHomePage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          leadingWidth: 150,
-          leading: const UserAccountMenu(),
-          title: const Text('项目管理'),
-          actions: [
-            const TestAccountSwitcher(),
+  Widget build(BuildContext context) {
+    final isBoss = context.watch<AuthProvider>().isBoss;
+    return Scaffold(
+      appBar: AppBar(
+        leadingWidth: 150,
+        leading: const UserAccountMenu(),
+        title: const Text('项目管理'),
+        actions: [
+          if (isBoss)
             IconButton(
-                tooltip: '刷新项目',
-                onPressed: _load,
-                icon: const Icon(Icons.refresh)),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          tooltip: '新建项目',
-          onPressed: _createProject,
-          child: const Icon(Icons.add),
-        ),
-        body: AppBackground(child: _body()),
-      );
+              tooltip: '主管管理',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const SupervisorManagementPage()),
+              ),
+              icon: const Icon(Icons.manage_accounts_outlined),
+            ),
+          const TestAccountSwitcher(),
+          IconButton(
+              tooltip: '刷新项目',
+              onPressed: _load,
+              icon: const Icon(Icons.refresh)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: '新建项目',
+        onPressed: _createProject,
+        child: const Icon(Icons.add),
+      ),
+      body: AppBackground(child: _body()),
+    );
+  }
 
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());

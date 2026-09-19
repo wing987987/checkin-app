@@ -1,6 +1,13 @@
 class DemoAccounts {
   static const accounts = <DemoAccount>[
     DemoAccount(
+      username: 'ck_boss',
+      password: '123456',
+      name: '测试老总',
+      role: 'boss',
+      detail: '全部项目',
+    ),
+    DemoAccount(
       username: 'ck_supervisor_a',
       password: '123456',
       name: '测试主管甲',
@@ -67,5 +74,9 @@ class DemoAccount {
     required this.detail,
   });
 
-  String get roleLabel => role == 'supervisor' ? '项目主管' : '工人';
+  String get roleLabel => role == 'boss'
+      ? '老总'
+      : role == 'supervisor'
+          ? '项目主管'
+          : '工人';
 }

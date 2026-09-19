@@ -28,6 +28,8 @@ class AuthProvider extends ChangeNotifier {
 
   String? get role => _currentUser?.role;
   bool get isSupervisor => _currentUser?.role == 'supervisor';
+  bool get isBoss => _currentUser?.role == 'boss';
+  bool get canManageProjects => isSupervisor || isBoss;
 
   /// 启动时恢复登录态
   Future<void> loadToken() async {

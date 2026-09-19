@@ -189,9 +189,12 @@ class _LoginPageState extends State<LoginPage> {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 8),
                                     avatar: Icon(
-                                        account.role == 'supervisor'
-                                            ? Icons.manage_accounts_outlined
-                                            : Icons.engineering_outlined,
+                                        account.role == 'boss'
+                                            ? Icons
+                                                .admin_panel_settings_outlined
+                                            : account.role == 'supervisor'
+                                                ? Icons.manage_accounts_outlined
+                                                : Icons.engineering_outlined,
                                         size: 17,
                                         color: AppColors.primary),
                                     label: Text(account.name),

@@ -31,9 +31,9 @@ class _ClockCameraPageState extends State<ClockCameraPage>
         final index = _cameras.indexWhere((c) => c.lensDirection == preferred);
         if (index >= 0) _cameraIndex = index;
       } else {
-        final back = _cameras
-            .indexWhere((c) => c.lensDirection == CameraLensDirection.back);
-        if (back >= 0) _cameraIndex = back;
+        final front = _cameras
+            .indexWhere((c) => c.lensDirection == CameraLensDirection.front);
+        _cameraIndex = front >= 0 ? front : 0;
       }
       await _startCamera(_cameraIndex);
     } catch (error) {

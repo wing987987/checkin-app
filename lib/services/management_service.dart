@@ -8,9 +8,40 @@ import '../models/attendance_anomaly.dart';
 import '../models/attendance_report.dart';
 import '../models/clock_photo.dart';
 import '../models/my_schedule.dart';
+import '../models/checkin_supervisor.dart';
 
 class ManagementService {
   static final _client = DioClient.instance;
+
+  static Future<ApiResult<List<CheckinSupervisor>>> supervisors() async {
+    final response = await _client.get('/api/ck/supervisors');
+    return ApiResult.fromJson(
+        response.data,
+        (data) => (data as List)
+            .map(
+                (e) => CheckinSupervisor.fromJson(Map<String, dynamic>.from(e)))
+            .toList());
+  }
+
+  static Future<ApiResult<CheckinSupervisor>> createSupervisor(
+      Map<String, dynamic> data) async {
+    final response = await _client.post('/api/ck/supervisors', data: data);
+    return ApiResult.fromJson(
+        response.data,
+        (value) =>
+            CheckinSupervisor.fromJson(Map<String, dynamic>.from(value)));
+  }
+
+  static Future<ApiResult<CheckinSupervisor>> assignSupervisorProjects(
+      int supervisorId, List<int> projectIds) async {
+    final response = await _client.put(
+        '/api/ck/supervisors/$supervisorId/projects',
+        data: {'projectIds': projectIds});
+    return ApiResult.fromJson(
+        response.data,
+        (value) =>
+            CheckinSupervisor.fromJson(Map<String, dynamic>.from(value)));
+  }
 
   static Future<ApiResult<List<CheckinProject>>> projects() async {
     final response = await _client.get('/api/ck/projects');

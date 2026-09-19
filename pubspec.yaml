@@ -1,7 +1,7 @@
 name: checkin_app
 description: Worker clock-in app - GPS based attendance, shift recognition and monthly reports
 publish_to: 'none'
-version: 0.2.10+15
+version: 0.3.1+17
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

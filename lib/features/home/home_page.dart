@@ -11,7 +11,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    if (auth.isSupervisor) {
+    if (auth.canManageProjects) {
       return SupervisorHomePage(key: ValueKey(auth.username));
     }
     if (auth.role == 'worker') {

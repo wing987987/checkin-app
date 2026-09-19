@@ -188,9 +188,11 @@ class _UserAccountMenuState extends State<UserAccountMenu> {
       ? user!.realName!
       : user?.username ?? '用户';
 
-  String _roleName(String? role) => role == 'supervisor'
-      ? '项目主管'
-      : role == 'worker'
-          ? '工人'
-          : role ?? '-';
+  String _roleName(String? role) => role == 'boss'
+      ? '老总'
+      : role == 'supervisor'
+          ? '项目主管'
+          : role == 'worker'
+              ? '工人'
+              : role ?? '-';
 }
