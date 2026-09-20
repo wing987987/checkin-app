@@ -22,7 +22,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
   static const _blue = Color(0xFF165DFF);
   DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   DateTime selectedDate = DateUtils.dateOnly(DateTime.now());
-  _ProjectReportMode mode = _ProjectReportMode.day;
+  _ProjectReportMode mode = _ProjectReportMode.month;
   ProjectMonthReport? report;
   bool loading = true;
   String? error;
@@ -722,13 +722,13 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
             _metric('$normal', '正常人次', _blue),
             _metric('$abnormal', '异常人次',
                 abnormal > 0 ? Colors.redAccent : Colors.grey),
-            _metric(_hours(value.totalWorkHours), '正常工时', Colors.black87),
+            _metric(_hours(value.totalWorkHours + value.totalOvertimeHours), '总工时', Colors.black87),
           ]),
           const Divider(height: 30),
           Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
             _metric(
                 value.totalWorkUnits.toStringAsFixed(2), '总工数', Colors.black87),
-            _metric(_hours(value.totalOvertimeHours), '加班', Colors.black87),
+            _metric(_hours(value.totalOvertimeHours), '其中加班', Colors.black87),
             _metric('${value.workers.length}', '考勤人数', Colors.black87),
           ]),
         ])),
@@ -738,18 +738,63 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
               child: const Padding(
                   padding: EdgeInsets.symmetric(vertical: 36),
                   child: Center(child: Text('本月暂无考勤'))))
-        else
-          ...value.workers.map((worker) => Card(
-                  child: ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                title: Text(worker.workerName),
-                subtitle: Text(
-                    '${worker.teamName} · 出勤 ${worker.attendanceDays}天\n工数 ${worker.workUnits} · 工时 ${_hours(worker.workHours)} · 加班 ${_hours(worker.overtimeHours)}'),
-                isThreeLine: true,
-                trailing: _statusTag(worker.anomalyDays == 0,
-                    worker.anomalyDays > 0 ? '异常 ${worker.anomalyDays}' : '正常'),
-              ))),
+        else ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 6),
+            child: Text('按工种查看工时',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          ),
+          ...value.workersByJobType.entries.map((entry) {
+            final workers = entry.value;
+            final hours = workers.fold<double>(0, (sum, worker) => sum + worker.workHours);
+            final overtime = workers.fold<double>(0, (sum, worker) => sum + worker.overtimeHours);
+            return Card(
+              child: ExpansionTile(
+                title: Text(entry.key),
+                subtitle: Text('${workers.length}人 · 总工时 ${_hours(hours + overtime)}（加班 ${_hours(overtime)}）'),
+                children: workers.map((worker) => ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+                  title: Text(worker.workerName),
+                  subtitle: Text('${worker.teamName} · 出勤 ${worker.attendanceDays}天 · 总工时 ${_hours(worker.workHours + worker.overtimeHours)}'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showWorkerMonthDays(worker, value.days),
+                )).toList(),
+              ),
+            );
+          }),
+        ],
       ],
+    );
+  }
+
+  void _showWorkerMonthDays(ProjectWorkerReport worker, List<DailyAttendance> allDays) {
+    final days = allDays.where((day) => day.workerId == worker.workerId).toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.75,
+          child: Column(children: [
+            ListTile(
+              title: Text('${worker.workerName} · 月度工时'),
+              subtitle: Text('总工时 ${_hours(worker.workHours + worker.overtimeHours)} · 其中加班 ${_hours(worker.overtimeHours)}'),
+            ),
+            Expanded(child: ListView.builder(
+              itemCount: days.length,
+              itemBuilder: (_, index) {
+                final day = days[index];
+                return ListTile(
+                  title: Text(day.date),
+                  subtitle: Text('${day.teamName} · ${day.shiftName} · 加班 ${_hours(day.overtimeHours)}\n${day.statusMessage}'),
+                  trailing: Text(_hours(day.workHours + day.overtimeHours)),
+                );
+              },
+            )),
+          ]),
+        ),
+      ),
     );
   }
 

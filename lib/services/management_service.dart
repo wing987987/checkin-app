@@ -9,9 +9,39 @@ import '../models/attendance_report.dart';
 import '../models/clock_photo.dart';
 import '../models/my_schedule.dart';
 import '../models/checkin_supervisor.dart';
+import '../models/checkin_job_type.dart';
 
 class ManagementService {
   static final _client = DioClient.instance;
+
+  static Future<ApiResult<List<CheckinJobType>>> jobTypes() async {
+    final response = await _client.get('/api/ck/job-types');
+    return ApiResult.fromJson(
+        response.data,
+        (data) => (data as List)
+            .map((e) => CheckinJobType.fromJson(Map<String, dynamic>.from(e)))
+            .toList());
+  }
+
+  static Future<ApiResult<CheckinJobType>> createJobType(String name) async {
+    final response =
+        await _client.post('/api/ck/job-types', data: {'name': name});
+    return ApiResult.fromJson(response.data,
+        (data) => CheckinJobType.fromJson(Map<String, dynamic>.from(data)));
+  }
+
+  static Future<ApiResult<CheckinJobType>> updateJobType(
+      int id, String name) async {
+    final response =
+        await _client.put('/api/ck/job-types/$id', data: {'name': name});
+    return ApiResult.fromJson(response.data,
+        (data) => CheckinJobType.fromJson(Map<String, dynamic>.from(data)));
+  }
+
+  static Future<ApiResult<dynamic>> deleteJobType(int id) async {
+    final response = await _client.delete('/api/ck/job-types/$id');
+    return ApiResult.fromJson(response.data, (data) => data);
+  }
 
   static Future<ApiResult<List<CheckinSupervisor>>> supervisors() async {
     final response = await _client.get('/api/ck/supervisors');

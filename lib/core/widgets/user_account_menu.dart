@@ -6,6 +6,7 @@ import '../../models/user_info.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/app_update_service.dart';
 import 'update_dialog.dart';
+import '../../features/management/job_type_management_page.dart';
 
 class UserAccountMenu extends StatefulWidget {
   const UserAccountMenu({super.key});
@@ -79,6 +80,16 @@ class _UserAccountMenuState extends State<UserAccountMenu> {
               leading: Icon(Icons.account_circle_outlined),
               title: Text('用户信息')),
         ),
+        if (user?.role == 'supervisor' || user?.role == 'boss')
+          const PopupMenuItem(
+            value: 'jobTypes',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.handyman_outlined),
+              title: Text('工种管理'),
+            ),
+          ),
         PopupMenuItem(
           value: 'update',
           enabled: !checking,
@@ -123,6 +134,10 @@ class _UserAccountMenuState extends State<UserAccountMenu> {
         break;
       case 'update':
         await _checkUpdate();
+        break;
+      case 'jobTypes':
+        await Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const JobTypeManagementPage()));
         break;
       case 'logout':
         await context.read<AuthProvider>().logout();

@@ -6,6 +6,7 @@ import '../../models/checkin_project.dart';
 import '../../models/checkin_shift.dart';
 import '../../models/checkin_team.dart';
 import '../../models/worker_assignment.dart';
+import '../../models/checkin_job_type.dart';
 import '../../models/my_schedule.dart';
 import '../../services/management_service.dart';
 import '../../core/widgets/dialog_scroll_view.dart';
@@ -27,6 +28,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   List<CheckinTeam> teams = const [];
   List<CheckinShift> shifts = const [];
   List<WorkerAssignment> workers = const [];
+  List<CheckinJobType> jobTypes = const [];
   bool loading = true;
 
   @override
@@ -43,12 +45,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         ManagementService.teams(project.id),
         ManagementService.shifts(project.id),
         ManagementService.workers(project.id),
+        ManagementService.jobTypes(),
       ]);
       if (!mounted) return;
       setState(() {
         teams = values[0].data as List<CheckinTeam>? ?? const [];
         shifts = values[1].data as List<CheckinShift>? ?? const [];
         workers = values[2].data as List<WorkerAssignment>? ?? const [];
+        jobTypes = values[3].data as List<CheckinJobType>? ?? const [];
       });
     } catch (_) {
       if (mounted) _message('加载失败，请检查网络');
@@ -94,7 +98,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       child: ListTile(
                           leading: const Icon(Icons.assessment),
                           title: const Text('考勤报表'),
-                          subtitle: const Text('项目日报、月报与工人明细'),
+                          subtitle: const Text('项目月工时 → 工种 → 工人；可切换日报'),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => Navigator.push(
                               context,
@@ -116,7 +120,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       child: ListTile(
                           leading: const Icon(Icons.manage_accounts_outlined),
                           title: const Text('用户管理'),
-                          subtitle: const Text('新增、编辑、分组、个人班次和项目转移'),
+                          subtitle: const Text('新增、工种、分组、个人班次和项目转移'),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () async {
                             await Navigator.push(
@@ -497,6 +501,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         password = TextEditingController(text: '123456'),
         realName = TextEditingController(),
         phone = TextEditingController();
+    String? jobType;
     var teamId = teams.first.id, shiftId = shifts.first.id;
     final ok = await showDialog<bool>(
         context: context,
@@ -509,6 +514,16 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       TextField(
                           controller: realName,
                           decoration: const InputDecoration(hintText: '姓名')),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                          value: jobType,
+                          decoration: const InputDecoration(hintText: '工种（必选）'),
+                          items: jobTypes
+                              .map((type) => DropdownMenuItem(
+                                  value: type.name, child: Text(type.name)))
+                              .toList(),
+                          onChanged: (value) =>
+                              setLocal(() => jobType = value)),
                       const SizedBox(height: 12),
                       TextField(
                           controller: username,
@@ -552,7 +567,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       FilledButton(
                           onPressed: () async {
                             if (username.text.trim().isEmpty ||
-                                realName.text.trim().isEmpty) {
+                                realName.text.trim().isEmpty ||
+                                jobType == null) {
                               return;
                             }
                             final r = await ManagementService.createWorker(
@@ -560,6 +576,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                               'username': username.text.trim(),
                               'password': password.text,
                               'realName': realName.text.trim(),
+                              'jobType': jobType,
                               'phone': phone.text.trim(),
                               'teamId': teamId,
                               'shiftId': shiftId
@@ -997,8 +1014,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                 ? worker.username
                                 : worker.realName),
                             subtitle: Text(worker.personalShiftOverride
-                                ? '${worker.shiftName}（个人班次）'
-                                : '使用班组默认班次'),
+                                ? '${worker.jobType?.isNotEmpty == true ? worker.jobType : '未设置工种'} · ${worker.shiftName}（个人班次）'
+                                : '${worker.jobType?.isNotEmpty == true ? worker.jobType : '未设置工种'} · 使用班组默认班次'),
                             trailing: IconButton(
                                 tooltip: '移出班组',
                                 icon: const Icon(Icons.person_remove_outlined),
@@ -1077,45 +1094,60 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
 
   Future<void> _editWorker(WorkerAssignment worker) async {
     final name = TextEditingController(text: worker.realName);
+    String? jobType = jobTypes.any((type) => type.name == worker.jobType)
+        ? worker.jobType
+        : null;
     final phone = TextEditingController(text: worker.phone ?? '');
     final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('编辑 ${worker.username}'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
-              controller: name,
-              decoration: const InputDecoration(hintText: '姓名')),
-          const SizedBox(height: 12),
-          TextField(
-              controller: phone,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(hintText: '手机号（选填）')),
-        ]),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消')),
-          FilledButton(
-            onPressed: () async {
-              if (name.text.trim().isEmpty) return;
-              final result =
-                  await ManagementService.updateWorker(worker.workerId, {
-                'realName': name.text.trim(),
-                'phone': phone.text.trim(),
-                'status': worker.status,
-              });
-              if (!ctx.mounted) return;
-              if (result.isSuccess) {
-                Navigator.pop(ctx, true);
-              } else {
-                _message(result.message);
-              }
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+      builder: (ctx) => StatefulBuilder(
+          builder: (_, setLocal) => AlertDialog(
+                title: Text('编辑 ${worker.username}'),
+                content: DialogScrollView(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextField(
+                      controller: name,
+                      decoration: const InputDecoration(hintText: '姓名')),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                      value: jobType,
+                      decoration: const InputDecoration(hintText: '工种（必选）'),
+                      items: jobTypes
+                          .map((type) => DropdownMenuItem(
+                              value: type.name, child: Text(type.name)))
+                          .toList(),
+                      onChanged: (value) => setLocal(() => jobType = value)),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: phone,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(hintText: '手机号（选填）')),
+                ])),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('取消')),
+                  FilledButton(
+                    onPressed: () async {
+                      if (name.text.trim().isEmpty || jobType == null) return;
+                      final result = await ManagementService.updateWorker(
+                          worker.workerId, {
+                        'realName': name.text.trim(),
+                        'jobType': jobType,
+                        'phone': phone.text.trim(),
+                        'status': worker.status,
+                      });
+                      if (!ctx.mounted) return;
+                      if (result.isSuccess) {
+                        Navigator.pop(ctx, true);
+                      } else {
+                        _message(result.message);
+                      }
+                    },
+                    child: const Text('保存'),
+                  ),
+                ],
+              )),
     );
     if (saved == true) _load();
   }
@@ -1129,6 +1161,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     if (!confirmed) return;
     final result = await ManagementService.updateWorker(worker.workerId, {
       'realName': worker.realName,
+      'jobType': worker.jobType,
       'phone': worker.phone,
       'status': next,
     });

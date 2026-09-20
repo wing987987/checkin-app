@@ -6,6 +6,7 @@ import '../../models/checkin_project.dart';
 import '../../models/checkin_shift.dart';
 import '../../models/checkin_team.dart';
 import '../../models/worker_assignment.dart';
+import '../../models/checkin_job_type.dart';
 import '../../services/management_service.dart';
 import '../../core/widgets/dialog_scroll_view.dart';
 
@@ -21,6 +22,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
   List<CheckinTeam> teams = const [];
   List<CheckinShift> shifts = const [];
   List<CheckinProject> projects = const [];
+  List<CheckinJobType> jobTypes = const [];
   bool loading = true;
 
   @override
@@ -37,6 +39,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
         ManagementService.teams(widget.project.id),
         ManagementService.shifts(widget.project.id),
         ManagementService.projects(),
+        ManagementService.jobTypes(),
       ]);
       if (!mounted) return;
       setState(() {
@@ -44,6 +47,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
         teams = values[1].data as List<CheckinTeam>? ?? const [];
         shifts = values[2].data as List<CheckinShift>? ?? const [];
         projects = values[3].data as List<CheckinProject>? ?? const [];
+        jobTypes = values[4].data as List<CheckinJobType>? ?? const [];
       });
     } finally {
       if (mounted) setState(() => loading = false);
@@ -82,7 +86,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
         title:
             Text(worker.realName.isEmpty ? worker.username : worker.realName),
         subtitle: Text(
-            '用户名：${worker.username}\n${worker.teamName.isEmpty ? '未分配班组' : worker.teamName} · ${worker.shiftName.isEmpty ? '未设置班次' : worker.shiftName}${worker.personalShiftOverride ? '（个人班次）' : '（班组班次）'}'),
+            '用户名：${worker.username} · 工种：${worker.jobType?.isNotEmpty == true ? worker.jobType : '未设置'}\n${worker.teamName.isEmpty ? '未分配班组' : worker.teamName} · ${worker.shiftName.isEmpty ? '未设置班次' : worker.shiftName}${worker.personalShiftOverride ? '（个人班次）' : '（班组班次）'}'),
         isThreeLine: true,
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
@@ -103,6 +107,9 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
     final username = TextEditingController(text: worker?.username ?? '');
     final password = TextEditingController(text: '123456');
     final name = TextEditingController(text: worker?.realName ?? '');
+    String? jobType = jobTypes.any((type) => type.name == worker?.jobType)
+        ? worker!.jobType
+        : null;
     final phone = TextEditingController(text: worker?.phone ?? '');
     int teamId = worker?.teamId ?? (teams.isEmpty ? 0 : teams.first.id);
     int personalShiftId = worker?.personalShiftId ?? 0;
@@ -121,6 +128,17 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                       TextField(
                           controller: name,
                           decoration: const InputDecoration(hintText: '请输入姓名')),
+                      const SizedBox(height: 16),
+                      _fieldLabel('工种'),
+                      DropdownButtonFormField<String>(
+                          value: jobType,
+                          decoration: const InputDecoration(hintText: '请选择工种'),
+                          items: jobTypes
+                              .map((type) => DropdownMenuItem(
+                                  value: type.name, child: Text(type.name)))
+                              .toList(),
+                          onChanged: (value) =>
+                              setLocal(() => jobType = value)),
                       const SizedBox(height: 16),
                       _fieldLabel('登录用户名'),
                       TextField(
@@ -204,6 +222,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                   FilledButton(
                       onPressed: () async {
                         if (name.text.trim().isEmpty ||
+                            jobType == null ||
                             creating && username.text.trim().isEmpty ||
                             teamId == 0 && creating) return;
                         final result = creating
@@ -212,6 +231,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                                 'username': username.text.trim(),
                                 'password': password.text,
                                 'realName': name.text.trim(),
+                                'jobType': jobType,
                                 'phone': phone.text.trim(),
                                 'teamId': teamId,
                                 'shiftId': personalShiftId == 0
@@ -221,6 +241,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                             : await ManagementService.updateWorker(
                                 worker.workerId, {
                                 'realName': name.text.trim(),
+                                'jobType': jobType,
                                 'phone': phone.text.trim(),
                                 'status': enabled ? 1 : 0,
                                 'teamId': teamId == 0 ? null : teamId,
@@ -273,7 +294,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                           targets.firstWhere((project) => project.id == id))),
                   const Padding(
                       padding: EdgeInsets.only(top: 12),
-                      child: Text('转移后原班组和个人班次将清空，需要在目标项目重新分配。历史打卡记录永久保留。',
+                      child: Text('转移后原班组和个人班次将清空；工种保留。历史打卡记录永久保留。',
                           style: TextStyle(color: Colors.orange))),
                 ]),
                 actions: [

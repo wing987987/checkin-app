@@ -122,11 +122,15 @@ class WorkerMonthReport {
 }
 
 class ProjectWorkerReport {
+  final int workerId;
   final String workerName, teamName;
+  final String jobType;
   final double workHours, overtimeHours, workUnits;
   final int attendanceDays, anomalyDays, correctedDays;
   const ProjectWorkerReport(
-      {required this.workerName,
+      {required this.workerId,
+      required this.workerName,
+      required this.jobType,
       required this.teamName,
       required this.workHours,
       required this.overtimeHours,
@@ -136,7 +140,9 @@ class ProjectWorkerReport {
       required this.correctedDays});
   factory ProjectWorkerReport.fromJson(Map<String, dynamic> j) =>
       ProjectWorkerReport(
+          workerId: j['workerId'] as int? ?? 0,
           workerName: j['workerName'] ?? '',
+          jobType: j['jobType'] ?? '未设置工种',
           teamName: j['teamName'] ?? '',
           workHours: (j['workHours'] as num?)?.toDouble() ?? 0,
           overtimeHours: (j['overtimeHours'] as num?)?.toDouble() ?? 0,
@@ -177,4 +183,15 @@ class ProjectMonthReport {
               .map(
                   (e) => DailyAttendance.fromJson(Map<String, dynamic>.from(e)))
               .toList());
+
+  Map<String, List<ProjectWorkerReport>> get workersByJobType {
+    final groups = <String, List<ProjectWorkerReport>>{};
+    for (final worker in workers) {
+      final jobType = worker.jobType.trim().isEmpty
+          ? '未设置工种' : worker.jobType.trim();
+      groups.putIfAbsent(jobType, () => []).add(worker);
+    }
+    return Map.fromEntries(groups.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key)));
+  }
 }

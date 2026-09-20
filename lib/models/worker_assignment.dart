@@ -2,6 +2,7 @@ class WorkerAssignment {
   final int workerId;
   final String username;
   final String realName;
+  final String? jobType;
   final String? phone;
   final int projectId;
   final int? teamId;
@@ -16,6 +17,7 @@ class WorkerAssignment {
       {required this.workerId,
       required this.username,
       required this.realName,
+      this.jobType,
       this.phone,
       required this.projectId,
       required this.teamId,
@@ -31,6 +33,7 @@ class WorkerAssignment {
         workerId: json['workerId'] as int,
         username: json['username'] as String? ?? '',
         realName: json['realName'] as String? ?? '',
+        jobType: json['jobType'] as String?,
         phone: json['phone'] as String?,
         projectId: json['projectId'] as int,
         teamId: json['teamId'] as int?,
