@@ -12,6 +12,8 @@ class WorkerAssignment {
   final int? personalShiftId;
   final bool personalShiftOverride;
   final int status;
+  final bool extraShiftOverride;
+  final List<int> extraShiftIds;
 
   const WorkerAssignment(
       {required this.workerId,
@@ -26,7 +28,9 @@ class WorkerAssignment {
       required this.shiftName,
       this.personalShiftId,
       required this.personalShiftOverride,
-      required this.status});
+      required this.status,
+      required this.extraShiftOverride,
+      required this.extraShiftIds});
 
   factory WorkerAssignment.fromJson(Map<String, dynamic> json) =>
       WorkerAssignment(
@@ -43,5 +47,8 @@ class WorkerAssignment {
         personalShiftId: json['personalShiftId'] as int?,
         personalShiftOverride: json['personalShiftOverride'] == true,
         status: json['status'] as int? ?? 1,
+        extraShiftOverride: json['extraShiftOverride'] == true,
+        extraShiftIds: (json['extraShiftIds'] as List? ?? const [])
+            .map((e) => e as int).toList(),
       );
 }

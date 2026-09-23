@@ -246,12 +246,15 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
     }
     final normal = days.where((day) => day.status == 'normal').length;
     final abnormal = days.length - normal;
+    final totalUnits = days.fold<double>(0, (sum, day) => sum + day.workUnits);
     return Column(children: [
       _surface(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${DateFormat('M月d日').format(selectedDate)} 上下班打卡',
             style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 10),
+        _unitsFocus(totalUnits, label: '当日总工数'),
         const SizedBox(height: 18),
         SizedBox(
             height: 145,
@@ -276,70 +279,48 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         child: _surface(
             padding: EdgeInsets.zero,
             child: ExpansionTile(
+              tilePadding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
               leading: CircleAvatar(
+                  backgroundColor: AppColors.soft,
                   child: Text(day.workerName.isEmpty
                       ? '?'
                       : day.workerName.substring(0, 1))),
-              title: Text(day.workerName,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(
-                  '${day.teamName} · ${day.shiftName}\n工时 ${_hours(day.workHours)} · 加班 ${_hours(day.overtimeHours)}'),
-              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                _statusTag(day.status == 'normal',
-                    day.status == 'normal' ? '正常' : '异常'),
-                const SizedBox(width: 4),
-                const Icon(Icons.expand_more, color: AppColors.textTertiary),
+              title: Row(children: [
+                Expanded(
+                    child: Text(day.workerName,
+                        style: const TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.w700))),
+                _dayStatus(day.status),
               ]),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${day.teamName} / ${day.shiftName}',
+                          style:
+                              const TextStyle(color: AppColors.textSecondary)),
+                      const SizedBox(height: 8),
+                      _unitsFocus(day.workUnits),
+                      const SizedBox(height: 6),
+                      Wrap(spacing: 6, runSpacing: 6, children: [
+                        _smallMetric('工时参考', _hours(day.workHours),
+                            AppColors.textSecondary),
+                        if (day.overtimeHours > 0)
+                          _smallMetric('加班', _hours(day.overtimeHours),
+                              AppColors.warning),
+                      ]),
+                    ]),
+              ),
               childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               children: [
-                ...day.clocks.map((clock) => ListTile(
-                      dense: true,
-                      leading: Icon(
-                          clock.status == 'missing'
-                              ? Icons.cancel_outlined
-                              : clock.countable
-                                  ? Icons.check_circle_outline
-                                  : Icons.error_outline,
-                          color: clock.status == 'missing' || !clock.countable
-                              ? Colors.orange
-                              : _blue),
-                      title: Row(children: [
-                        Flexible(child: Text(clock.checkpointName)),
-                        if (clock.adjustmentAction.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                                color: Colors.indigo.withValues(alpha: .1),
-                                borderRadius: BorderRadius.circular(10)),
-                            child: Text(
-                                _adjustmentLabel(clock.adjustmentAction),
-                                style: const TextStyle(
-                                    color: Colors.indigo, fontSize: 12)),
-                          ),
-                        ],
-                      ]),
-                      subtitle: clock.correctionReason.isEmpty
-                          ? null
-                          : Text('原因：${clock.correctionReason}'),
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        if (clock.status == 'missing' &&
-                            clock.checkpointId != null)
-                          TextButton.icon(
-                              onPressed: () => _supplementMissing(day, clock),
-                              icon: const Icon(Icons.add_task_outlined),
-                              label: const Text('补卡')),
-                        if (clock.hasPhoto && clock.recordId != null)
-                          IconButton(
-                              tooltip: '查看打卡照片',
-                              onPressed: () => _showClockPhoto(day, clock),
-                              icon: const Icon(Icons.photo_camera_outlined,
-                                  color: _blue)),
-                        if (clock.status != 'missing')
-                          Text(_time(clock.clockTime)),
-                      ]),
-                    )),
+                if (day.statusMessage.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(day.statusMessage,
+                        style: const TextStyle(color: AppColors.textSecondary)),
+                  ),
+                ...day.clocks.map((clock) => _clockCard(day, clock)),
                 Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
@@ -349,6 +330,180 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
               ],
             )),
       );
+
+  Widget _dayStatus(String status) {
+    final label = switch (status) {
+      'normal' => '正常',
+      'manual' => '主管确认',
+      'pending_review' => '待确认工数',
+      'missing' => '缺卡',
+      _ => '异常',
+    };
+    final color = switch (status) {
+      'normal' => AppColors.success,
+      'manual' => AppColors.primary,
+      'pending_review' => AppColors.warning,
+      _ => AppColors.danger,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(6)),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 12, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _smallMetric(String label, String value, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+            color: color.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(6)),
+        child: Text('$label $value',
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+      );
+
+  Widget _unitsFocus(double units, {String label = '工数'}) => Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          Text('$label  ',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13)),
+          Text(units.toStringAsFixed(2),
+              style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800)),
+          const Text(' 工',
+              style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700)),
+        ],
+      );
+
+  Widget _clockCard(DailyAttendance day, AttendanceClockDetail clock) {
+    final missing = clock.status == 'missing';
+    final abnormal = !missing && !clock.countable;
+    final color = missing || abnormal ? AppColors.warning : AppColors.success;
+    final label = missing
+        ? '未打卡'
+        : abnormal
+            ? '异常'
+            : '有效';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: AppColors.surfaceSubtle,
+          borderRadius: BorderRadius.circular(10)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(
+              missing
+                  ? Icons.radio_button_unchecked
+                  : abnormal
+                      ? Icons.warning_amber
+                      : Icons.check_circle_outline,
+              size: 20,
+              color: color),
+          const SizedBox(width: 7),
+          Expanded(
+              child: Text(clock.checkpointName,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700))),
+          _smallMetric(label, missing ? '' : _time(clock.clockTime), color),
+        ]),
+        const SizedBox(height: 8),
+        Text(
+            '标准：${clock.expectedDayOffset > 0 ? '次日 ' : ''}${clock.expectedTime}',
+            style: const TextStyle(color: AppColors.textSecondary)),
+        if (clock.originalTime.isNotEmpty)
+          Text('原始：${_dateTime(clock.originalTime)}',
+              style: const TextStyle(color: AppColors.textSecondary)),
+        if (clock.clockTime.isNotEmpty && clock.clockTime != clock.originalTime)
+          Text('调整后：${_dateTime(clock.clockTime)}',
+              style: const TextStyle(
+                  color: AppColors.primary, fontWeight: FontWeight.w600)),
+        if (clock.adjustmentAction.isNotEmpty ||
+            clock.correctionReason.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          Text(
+              '${_adjustmentLabel(clock.adjustmentAction)}'
+              '${clock.correctionReason.isEmpty ? '' : ' · ${clock.correctionReason}'}',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12)),
+        ],
+        if (clock.anomalyMessage.isNotEmpty && abnormal)
+          Text(clock.anomalyMessage,
+              style: const TextStyle(color: AppColors.warning, fontSize: 12)),
+        if (missing ||
+            clock.hasPhoto ||
+            (clock.recordId != null && clock.anomalyMessage.isNotEmpty)) ...[
+          const SizedBox(height: 7),
+          Wrap(spacing: 6, runSpacing: 4, children: [
+            if (missing && clock.checkpointId != null)
+              TextButton.icon(
+                  onPressed: () => _supplementMissing(day, clock),
+                  icon: const Icon(Icons.add_task_outlined, size: 18),
+                  label: const Text('补卡')),
+            if (clock.hasPhoto && clock.recordId != null)
+              TextButton.icon(
+                  onPressed: () => _showClockPhoto(day, clock),
+                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                  label: const Text('查看照片')),
+            if (clock.recordId != null && clock.anomalyMessage.isNotEmpty)
+              TextButton.icon(
+                  onPressed: () => _resolveReportClock(day, clock),
+                  icon: const Icon(Icons.fact_check_outlined, size: 18),
+                  label: const Text('确认并自动调整')),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  Future<void> _resolveReportClock(
+      DailyAttendance day, AttendanceClockDetail clock) async {
+    final recordId = clock.recordId;
+    if (recordId == null) return;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认并自动调整'),
+        content: Text('${day.workerName} · ${clock.checkpointName}\n'
+            '原始时间 ${_dateTime(clock.originalTime)}\n'
+            '将调整到班次标准时间和项目定位，并计入工时。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          FilledButton(
+            onPressed: () async {
+              final result = await ManagementService.resolveAnomaly(recordId, {
+                'action': 'auto',
+              });
+              if (!ctx.mounted) return;
+              if (result.isSuccess) {
+                Navigator.pop(ctx, true);
+              } else {
+                ScaffoldMessenger.of(ctx)
+                    .showSnackBar(SnackBar(content: Text(result.message)));
+              }
+            },
+            child: const Text('确认处理'),
+          ),
+        ],
+      ),
+    );
+    if (saved == true && mounted) await _load();
+  }
 
   Future<void> _showClockPhoto(
       DailyAttendance day, AttendanceClockDetail clock) async {
@@ -714,6 +869,8 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('月度考勤汇总',
               style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          _unitsFocus(value.totalWorkUnits, label: '本月总工数'),
           const SizedBox(height: 16),
           SizedBox(
               height: 145,
@@ -722,14 +879,14 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
             _metric('$normal', '正常人次', _blue),
             _metric('$abnormal', '异常人次',
                 abnormal > 0 ? Colors.redAccent : Colors.grey),
-            _metric(_hours(value.totalWorkHours + value.totalOvertimeHours), '总工时', Colors.black87),
+            _metric('${value.workers.length}', '考勤人数', Colors.black87),
           ]),
           const Divider(height: 30),
           Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
             _metric(
-                value.totalWorkUnits.toStringAsFixed(2), '总工数', Colors.black87),
-            _metric(_hours(value.totalOvertimeHours), '其中加班', Colors.black87),
-            _metric('${value.workers.length}', '考勤人数', Colors.black87),
+                _hours(value.totalWorkHours), '工时参考', AppColors.textSecondary),
+            _metric(_hours(value.totalOvertimeHours), '其中加班',
+                AppColors.textSecondary),
           ]),
         ])),
         const SizedBox(height: 14),
@@ -741,24 +898,101 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         else ...[
           const Padding(
             padding: EdgeInsets.only(bottom: 6),
-            child: Text('按工种查看工时',
+            child: Text('按工种查看工数',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           ),
           ...value.workersByJobType.entries.map((entry) {
             final workers = entry.value;
-            final hours = workers.fold<double>(0, (sum, worker) => sum + worker.workHours);
-            final overtime = workers.fold<double>(0, (sum, worker) => sum + worker.overtimeHours);
+            final hours = workers.fold<double>(
+                0, (sum, worker) => sum + worker.workHours);
+            final units = workers.fold<double>(
+                0, (sum, worker) => sum + worker.workUnits);
+            final overtime = workers.fold<double>(
+                0, (sum, worker) => sum + worker.overtimeHours);
             return Card(
               child: ExpansionTile(
-                title: Text(entry.key),
-                subtitle: Text('${workers.length}人 · 总工时 ${_hours(hours + overtime)}（加班 ${_hours(overtime)}）'),
-                children: workers.map((worker) => ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                  title: Text(worker.workerName),
-                  subtitle: Text('${worker.teamName} · 出勤 ${worker.attendanceDays}天 · 总工时 ${_hours(worker.workHours + worker.overtimeHours)}'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _showWorkerMonthDays(worker, value.days),
-                )).toList(),
+                title: Row(children: [
+                  Expanded(
+                      child: Text(entry.key,
+                          style: const TextStyle(
+                              fontSize: 17, fontWeight: FontWeight.w700))),
+                  Text('${units.toStringAsFixed(2)} 工',
+                      style: const TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800)),
+                ]),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Wrap(spacing: 6, runSpacing: 6, children: [
+                    _smallMetric(
+                        '人数', '${workers.length}', AppColors.textSecondary),
+                    _smallMetric(
+                        '工时参考', _hours(hours), AppColors.textSecondary),
+                    if (overtime > 0)
+                      _smallMetric('加班', _hours(overtime), AppColors.warning),
+                  ]),
+                ),
+                children: workers
+                    .map((worker) => Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          child: Card(
+                            color: AppColors.surfaceSubtle,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () =>
+                                  _showWorkerMonthDays(worker, value.days),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(children: [
+                                        Expanded(
+                                            child: Text(worker.workerName,
+                                                style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight:
+                                                        FontWeight.w700))),
+                                        Text(
+                                            '${worker.workUnits.toStringAsFixed(2)} 工',
+                                            style: const TextStyle(
+                                                color: AppColors.primary,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w800)),
+                                        const Icon(Icons.chevron_right,
+                                            color: AppColors.textTertiary),
+                                      ]),
+                                      Text(worker.teamName,
+                                          style: const TextStyle(
+                                              color: AppColors.textSecondary)),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                          spacing: 6,
+                                          runSpacing: 6,
+                                          children: [
+                                            _smallMetric(
+                                                '出勤',
+                                                '${worker.attendanceDays}天',
+                                                AppColors.primary),
+                                            _smallMetric(
+                                                '工时参考',
+                                                _hours(worker.workHours),
+                                                AppColors.textSecondary),
+                                            if (worker.overtimeHours > 0)
+                                              _smallMetric(
+                                                  '加班',
+                                                  _hours(worker.overtimeHours),
+                                                  AppColors.warning),
+                                          ]),
+                                    ]),
+                              ),
+                            ),
+                          ),
+                        ))
+                    .toList(),
               ),
             );
           }),
@@ -767,8 +1001,11 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
     );
   }
 
-  void _showWorkerMonthDays(ProjectWorkerReport worker, List<DailyAttendance> allDays) {
-    final days = allDays.where((day) => day.workerId == worker.workerId).toList()
+  void _showWorkerMonthDays(
+      ProjectWorkerReport worker, List<DailyAttendance> allDays) {
+    final days = allDays
+        .where((day) => day.workerId == worker.workerId)
+        .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
     showModalBottomSheet<void>(
       context: context,
@@ -777,18 +1014,69 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         child: SizedBox(
           height: MediaQuery.sizeOf(context).height * 0.75,
           child: Column(children: [
-            ListTile(
-              title: Text('${worker.workerName} · 月度工时'),
-              subtitle: Text('总工时 ${_hours(worker.workHours + worker.overtimeHours)} · 其中加班 ${_hours(worker.overtimeHours)}'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${worker.workerName} · 月度明细',
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 8),
+                    _unitsFocus(worker.workUnits, label: '本月工数'),
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 6, runSpacing: 6, children: [
+                      _smallMetric('工时参考', _hours(worker.workHours),
+                          AppColors.textSecondary),
+                      if (worker.overtimeHours > 0)
+                        _smallMetric('加班', _hours(worker.overtimeHours),
+                            AppColors.warning),
+                    ]),
+                  ]),
             ),
-            Expanded(child: ListView.builder(
+            Expanded(
+                child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
               itemCount: days.length,
               itemBuilder: (_, index) {
                 final day = days[index];
-                return ListTile(
-                  title: Text(day.date),
-                  subtitle: Text('${day.teamName} · ${day.shiftName} · 加班 ${_hours(day.overtimeHours)}\n${day.statusMessage}'),
-                  trailing: Text(_hours(day.workHours + day.overtimeHours)),
+                return Card(
+                  child: ExpansionTile(
+                    title: Row(children: [
+                      Expanded(
+                          child: Text(day.date,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700))),
+                      _dayStatus(day.status),
+                    ]),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 7),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(day.shiftName,
+                                style: const TextStyle(
+                                    color: AppColors.textSecondary)),
+                            const SizedBox(height: 6),
+                            _unitsFocus(day.workUnits),
+                            const SizedBox(height: 6),
+                            Wrap(spacing: 6, runSpacing: 6, children: [
+                              _smallMetric('工时参考', _hours(day.workHours),
+                                  AppColors.textSecondary),
+                            ]),
+                          ]),
+                    ),
+                    childrenPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                    children: [
+                      if (day.statusMessage.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(day.statusMessage,
+                              style: const TextStyle(
+                                  color: AppColors.textSecondary)),
+                        ),
+                      ...day.clocks.map((clock) => _clockCard(day, clock)),
+                    ],
+                  ),
                 );
               },
             )),
@@ -843,19 +1131,6 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
     return spans;
   }
 
-  Widget _statusTag(bool normal, String label) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: normal ? const Color(0xFFE6FFEA) : const Color(0xFFFFECEC),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(label,
-            style: TextStyle(
-                color: normal ? AppColors.success : AppColors.danger,
-                fontSize: 12,
-                fontWeight: FontWeight.w500)),
-      );
-
   Widget _surface({required Widget child, EdgeInsetsGeometry? padding}) =>
       Container(
         width: double.infinity,
@@ -870,6 +1145,13 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
     return parsed == null ? value : DateFormat('HH:mm').format(parsed);
   }
 
+  String _dateTime(String value) {
+    final parsed = DateTime.tryParse(value);
+    return parsed == null
+        ? value
+        : DateFormat('yyyy-MM-dd HH:mm').format(parsed);
+  }
+
   String _hours(double value) {
     final hours = value.floor();
     final minutes = ((value - hours) * 60).round();
@@ -880,7 +1162,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
       const {
         'supplement': '主管补卡',
         'correct': '时间调整',
-        'confirm': '确认有效',
+        'auto': '确认并自动调整',
+        'reject': '确认保持异常',
+        'confirm': '确认有效（旧）',
         'void': '历史误打',
       }[action] ??
       action;

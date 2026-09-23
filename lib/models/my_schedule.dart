@@ -61,6 +61,7 @@ class MySchedule {
   final double gpsLat;
   final double gpsLng;
   final String teamName;
+  final int shiftId;
   final String shiftName;
   final String shiftType;
   final String startTime;
@@ -69,6 +70,8 @@ class MySchedule {
   final String attendanceDate;
   final List<ScheduleCheckpoint> checkpoints;
   final List<ClockStatus> records;
+  final bool extraShift;
+  final List<MySchedule> extraSchedules;
   const MySchedule(
       {required this.projectId,
       required this.projectName,
@@ -76,6 +79,7 @@ class MySchedule {
       required this.gpsLat,
       required this.gpsLng,
       required this.teamName,
+      required this.shiftId,
       required this.shiftName,
       required this.shiftType,
       required this.startTime,
@@ -83,7 +87,9 @@ class MySchedule {
       required this.overtimeAvailable,
       required this.attendanceDate,
       required this.checkpoints,
-      required this.records});
+      required this.records,
+      required this.extraShift,
+      required this.extraSchedules});
   factory MySchedule.fromJson(Map<String, dynamic> json) => MySchedule(
       projectId: json['projectId'] as int,
       projectName: json['projectName'] as String? ?? '',
@@ -91,6 +97,7 @@ class MySchedule {
       gpsLat: (json['gpsLat'] as num).toDouble(),
       gpsLng: (json['gpsLng'] as num).toDouble(),
       teamName: json['teamName'] as String? ?? '',
+      shiftId: json['shiftId'] as int,
       shiftName: json['shiftName'] as String? ?? '',
       shiftType: json['shiftType'] as String? ?? '',
       startTime: json['startTime'] as String? ?? '',
@@ -102,5 +109,9 @@ class MySchedule {
           .toList(),
       records: (json['records'] as List? ?? const [])
           .map((e) => ClockStatus.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      extraShift: json['extraShift'] == true,
+      extraSchedules: (json['extraSchedules'] as List? ?? const [])
+          .map((e) => MySchedule.fromJson(Map<String, dynamic>.from(e)))
           .toList());
 }

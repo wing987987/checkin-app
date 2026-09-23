@@ -119,7 +119,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                                       Theme.of(context).textTheme.titleLarge)),
                         ]),
                         const SizedBox(height: 8),
-                        Text('${value.teamName} · ${value.shiftName}'),
+                        Text(value.teamName),
                         Text(
                             '考勤日期 ${value.attendanceDate} · 围栏 ${value.fenceRadius} 米'),
                       ]))),
@@ -127,38 +127,18 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
           _locationCard(value),
           const SizedBox(height: 16),
           Text('打卡进度', style: Theme.of(context).textTheme.titleMedium),
-          ...value.checkpoints.map((point) {
-            final matches =
-                value.records.where((r) => r.checkpointId == point.id);
-            final record = matches.isEmpty ? null : matches.first;
-            return Card(
-                child: ListTile(
-              leading: Icon(
-                  record == null
-                      ? Icons.radio_button_unchecked
-                      : record.countable
-                          ? Icons.check_circle
-                          : Icons.warning,
-                  color: record == null
-                      ? AppColors.textTertiary
-                      : record.countable
-                          ? AppColors.success
-                          : AppColors.warning),
-              title: Text(point.name),
-              subtitle: Text(
-                  '标准时间 ${point.expectedTime}${point.dayOffset == 1 ? '（次日）' : ''}'),
-              trailing: Text(record == null
-                  ? '未打卡'
-                  : record.anomalyType == null
-                      ? '已完成'
-                      : '异常'),
-              onTap:
-                  record == null ? null : () => _showClockDetail(point, record),
-            ));
-          }),
+          _scheduleProgressCard(value),
+          if (value.extraSchedules.isNotEmpty) ...[
+            ...value.extraSchedules.map(_scheduleProgressCard),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text('附加班次未打卡不会产生缺勤；开始打卡后，不完整班次需要主管确认。',
+                  style: TextStyle(color: Colors.grey)),
+            ),
+          ],
           const SizedBox(height: 20),
           FilledButton.icon(
-              onPressed: clocking ? null : () => _clock(),
+              onPressed: clocking ? null : _selectAndClock,
               icon: clocking
                   ? const SizedBox(
                       width: 18,
@@ -182,6 +162,99 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
             ),
           ],
         ]));
+  }
+
+  Widget _scheduleProgressCard(MySchedule value) => Card(
+        margin: const EdgeInsets.only(top: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${value.extraShift ? '附加班次' : '标准班次'} · ${value.shiftName}',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(
+                '${value.attendanceDate}  ${value.startTime}–${value.shiftType == 'night' ? '次日 ' : ''}${value.endTime} · ${value.records.where((r) => value.checkpoints.any((p) => p.id == r.checkpointId)).length}/${value.checkpoints.length} 次'),
+            const SizedBox(height: 8),
+            ...value.checkpoints.map((point) {
+              final matches =
+                  value.records.where((r) => r.checkpointId == point.id);
+              final record = matches.isEmpty ? null : matches.first;
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                    record == null
+                        ? Icons.radio_button_unchecked
+                        : record.countable
+                            ? Icons.check_circle
+                            : Icons.warning,
+                    color: record == null
+                        ? Colors.grey
+                        : record.countable
+                            ? AppColors.success
+                            : AppColors.warning),
+                title: Text(point.name),
+                subtitle: Text(
+                    '标准时间 ${point.expectedTime}${point.dayOffset == 1 ? '（次日）' : ''}'),
+                trailing: Text(record == null
+                    ? '未打卡'
+                    : record.anomalyType == null
+                        ? '已完成'
+                        : '异常'),
+                onTap: record == null
+                    ? null
+                    : () => _showClockDetail(point, record),
+              );
+            }),
+          ]),
+        ),
+      );
+
+  Future<void> _selectAndClock() async {
+    final primary = schedule;
+    if (primary == null) return;
+    if (primary.extraSchedules.isEmpty) {
+      await _clock(target: primary);
+      return;
+    }
+    final selected = await showModalBottomSheet<MySchedule>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('选择打卡班次', style: Theme.of(ctx).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [primary, ...primary.extraSchedules].map((shift) {
+                  final completed = shift.checkpoints
+                      .where((point) =>
+                          shift.records.any((r) => r.checkpointId == point.id))
+                      .length;
+                  return ListTile(
+                    leading: Icon(shift.extraShift
+                        ? Icons.add_circle_outline
+                        : Icons.schedule),
+                    title: Text(
+                        '${shift.extraShift ? '附加班次' : '标准班次'} · ${shift.shiftName}'),
+                    subtitle: Text(
+                        '${shift.attendanceDate}  ${shift.startTime}–${shift.shiftType == 'night' ? '次日 ' : ''}${shift.endTime}  ·  已打卡 $completed/${shift.checkpoints.length} 次'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.pop(ctx, shift),
+                  );
+                }).toList(),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    await _clock(target: selected);
   }
 
   Widget _locationCard(MySchedule value) {
@@ -354,8 +427,8 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       .where((record) => record.checkpointCode.startsWith('overtime_'))
       .length;
 
-  Future<void> _clock({bool overtime = false}) async {
-    final value = schedule!;
+  Future<void> _clock({bool overtime = false, MySchedule? target}) async {
+    final value = target ?? schedule!;
     final user = context.read<AuthProvider>().currentUser;
     String? sourcePhotoPath;
     String? watermarkedPhotoPath;
@@ -405,7 +478,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       setState(() => clockingStatus = '正在添加水印…');
       final watermarked = await WatermarkUtils.addClockWatermark(
           await File(photoPath).readAsBytes(), [
-        overtime ? '加班打卡' : '班次打卡',
+        overtime ? '加班打卡' : '${value.shiftName}打卡',
         value.projectName,
         user?.realName ?? user?.username ?? '',
         DateFormat('yyyy-MM-dd HH:mm:ss').format(now),
@@ -424,6 +497,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         throw Exception(uploaded.message);
       }
       final payload = {
+        'shiftId': value.shiftId,
         'requestId': '${now.microsecondsSinceEpoch}-${user?.id ?? 0}',
         'gpsLat': latitude,
         'gpsLng': longitude,

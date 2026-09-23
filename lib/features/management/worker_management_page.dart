@@ -113,7 +113,16 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
     final phone = TextEditingController(text: worker?.phone ?? '');
     int teamId = worker?.teamId ?? (teams.isEmpty ? 0 : teams.first.id);
     int personalShiftId = worker?.personalShiftId ?? 0;
+    var extraShiftOverride = worker?.extraShiftOverride ?? false;
+    final extraShiftIds = (worker?.extraShiftIds ?? const <int>[]).toSet();
     var enabled = worker?.status != 0;
+    String? nameError;
+    String? jobTypeError;
+    String? usernameError;
+    String? passwordError;
+    String? teamError;
+    String? saveError;
+    var saving = false;
     final saved = await showDialog<bool>(
         context: context,
         builder: (ctx) => StatefulBuilder(
@@ -127,26 +136,32 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                       _fieldLabel('姓名'),
                       TextField(
                           controller: name,
-                          decoration: const InputDecoration(hintText: '请输入姓名')),
+                          decoration: InputDecoration(
+                              hintText: '请输入姓名', errorText: nameError)),
                       const SizedBox(height: 16),
                       _fieldLabel('工种'),
                       DropdownButtonFormField<String>(
                           value: jobType,
-                          decoration: const InputDecoration(hintText: '请选择工种'),
+                          decoration: InputDecoration(
+                              hintText: '请选择工种', errorText: jobTypeError),
                           items: jobTypes
                               .map((type) => DropdownMenuItem(
                                   value: type.name, child: Text(type.name)))
                               .toList(),
-                          onChanged: (value) =>
-                              setLocal(() => jobType = value)),
+                          onChanged: (value) => setLocal(() {
+                            jobType = value;
+                            jobTypeError = null;
+                            saveError = null;
+                          })),
                       const SizedBox(height: 16),
                       _fieldLabel('登录用户名'),
                       TextField(
                           controller: username,
                           readOnly: !creating,
                           enableInteractiveSelection: true,
-                          decoration:
-                              const InputDecoration(hintText: '请输入登录用户名')),
+                          decoration: InputDecoration(
+                              hintText: '请输入登录用户名',
+                              errorText: usernameError)),
                       if (!creating) ...[
                         const SizedBox(height: 4),
                         const Text('用户名不可修改，长按可复制',
@@ -159,8 +174,9 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                         TextField(
                             controller: password,
                             obscureText: true,
-                            decoration:
-                                const InputDecoration(hintText: '请输入初始密码')),
+                            decoration: InputDecoration(
+                                hintText: '请输入初始密码',
+                                errorText: passwordError)),
                       ],
                       const SizedBox(height: 16),
                       _fieldLabel('手机号（选填）'),
@@ -173,7 +189,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                       _fieldLabel('班组'),
                       DropdownButtonFormField<int>(
                         value: teamId,
-                        decoration: const InputDecoration(),
+                        decoration: InputDecoration(errorText: teamError),
                         items: [
                           if (!creating)
                             const DropdownMenuItem(
@@ -184,8 +200,17 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                         onChanged: (value) => setLocal(() {
                           teamId = value ?? 0;
                           if (teamId == 0) personalShiftId = 0;
+                          teamError = null;
+                          saveError = null;
                         }),
                       ),
+                      if (teamId != 0) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          '班组默认主班次：${_teamShiftName(teamId)}',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       _fieldLabel('个人班次（选填）'),
                       DropdownButtonFormField<int>(
@@ -207,6 +232,29 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                             padding: EdgeInsets.only(top: 8),
                             child: Text('已选择个人班次：该用户将使用此班次，不再使用班组默认班次。',
                                 style: TextStyle(color: Colors.orange))),
+                      const SizedBox(height: 12),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('个人设置附加班次'),
+                        subtitle: Text(extraShiftOverride
+                            ? '覆盖班组设置，可单独选择允许的附加班次'
+                            : '使用班组的附加班次设置'),
+                        value: extraShiftOverride,
+                        onChanged: (value) => setLocal(() => extraShiftOverride = value),
+                      ),
+                      if (extraShiftOverride)
+                        ...shifts.where((shift) => shift.id != personalShiftId &&
+                            !(personalShiftId == 0 && teams.any((team) =>
+                                team.id == teamId && team.shiftId == shift.id)))
+                            .map((shift) => CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(shift.name),
+                              subtitle: const Text('不打卡不算缺勤'),
+                              value: extraShiftIds.contains(shift.id),
+                              onChanged: (value) => setLocal(() => value == true
+                                  ? extraShiftIds.add(shift.id)
+                                  : extraShiftIds.remove(shift.id)),
+                            )),
                       if (!creating)
                         SwitchListTile(
                             contentPadding: const EdgeInsets.only(top: 8),
@@ -216,47 +264,94 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                                 setLocal(() => enabled = value)),
                     ])),
                 actions: [
+                  if (saveError != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: Text(saveError!,
+                          style: TextStyle(
+                              color: Theme.of(ctx).colorScheme.error)),
+                    ),
                   TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       child: const Text('取消')),
                   FilledButton(
-                      onPressed: () async {
-                        if (name.text.trim().isEmpty ||
-                            jobType == null ||
-                            creating && username.text.trim().isEmpty ||
-                            teamId == 0 && creating) return;
-                        final result = creating
-                            ? await ManagementService.createWorker(
-                                widget.project.id, {
-                                'username': username.text.trim(),
-                                'password': password.text,
-                                'realName': name.text.trim(),
-                                'jobType': jobType,
-                                'phone': phone.text.trim(),
-                                'teamId': teamId,
-                                'shiftId': personalShiftId == 0
-                                    ? null
-                                    : personalShiftId,
-                              })
-                            : await ManagementService.updateWorker(
-                                worker.workerId, {
-                                'realName': name.text.trim(),
-                                'jobType': jobType,
-                                'phone': phone.text.trim(),
-                                'status': enabled ? 1 : 0,
-                                'teamId': teamId == 0 ? null : teamId,
-                                'shiftId': personalShiftId == 0
-                                    ? null
-                                    : personalShiftId,
-                              });
-                        if (!ctx.mounted) return;
-                        if (result.isSuccess)
-                          Navigator.pop(ctx, true);
-                        else
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                              SnackBar(content: Text(result.message)));
+                      onPressed: saving ? null : () async {
+                        final usernameValue = username.text.trim();
+                        setLocal(() {
+                          nameError = name.text.trim().isEmpty ? '请输入姓名' : null;
+                          jobTypeError = jobType == null
+                              ? jobTypes.isEmpty
+                                  ? '请先在工种管理中添加工种'
+                                  : '请选择工种'
+                              : null;
+                          usernameError = creating &&
+                                  (usernameValue.length < 3 ||
+                                      usernameValue.length > 32)
+                              ? '登录用户名需为 3–32 个字符'
+                              : null;
+                          passwordError = creating &&
+                                  (password.text.length < 4 ||
+                                      password.text.length > 64)
+                              ? '初始密码需为 4–64 个字符'
+                              : null;
+                          teamError = creating && teamId == 0
+                              ? '请选择班组'
+                              : null;
+                          saveError = [nameError, jobTypeError, usernameError,
+                                  passwordError, teamError]
+                              .whereType<String>()
+                              .join('；');
+                          if (saveError!.isEmpty) saveError = null;
+                        });
+                        if (nameError != null || jobTypeError != null ||
+                            usernameError != null || passwordError != null ||
+                            teamError != null) return;
+                        setLocal(() => saving = true);
+                        try {
+                          final result = creating
+                              ? await ManagementService.createWorker(
+                                  widget.project.id, {
+                                  'username': usernameValue,
+                                  'password': password.text,
+                                  'realName': name.text.trim(),
+                                  'jobType': jobType,
+                                  'phone': phone.text.trim(),
+                                  'teamId': teamId,
+                                  'shiftId': personalShiftId == 0
+                                      ? null
+                                      : personalShiftId,
+                                  'extraShiftOverride': extraShiftOverride,
+                                  'extraShiftIds': extraShiftIds.toList(),
+                                })
+                              : await ManagementService.updateWorker(
+                                  worker.workerId, {
+                                  'realName': name.text.trim(),
+                                  'jobType': jobType,
+                                  'phone': phone.text.trim(),
+                                  'status': enabled ? 1 : 0,
+                                  'teamId': teamId == 0 ? null : teamId,
+                                  'shiftId': personalShiftId == 0
+                                      ? null
+                                      : personalShiftId,
+                                  'extraShiftOverride': extraShiftOverride,
+                                  'extraShiftIds': extraShiftIds.toList(),
+                                });
+                          if (!ctx.mounted) return;
+                          if (result.isSuccess) {
+                            Navigator.pop(ctx, true);
+                          } else {
+                            setLocal(() => saveError = result.message);
+                          }
+                        } catch (error) {
+                          if (ctx.mounted) {
+                            setLocal(() => saveError =
+                                '保存失败：${error.toString().replaceFirst('Exception: ', '')}');
+                          }
+                        } finally {
+                          if (ctx.mounted) setLocal(() => saving = false);
+                        }
                       },
-                      child: const Text('保存')),
+                      child: Text(saving ? '保存中…' : '保存')),
                 ],
               ),
             ));
@@ -268,6 +363,16 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
         child: Text(text,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
       );
+
+  String _teamShiftName(int teamId) {
+    for (final team in teams) {
+      if (team.id != teamId) continue;
+      for (final shift in shifts) {
+        if (shift.id == team.shiftId) return shift.name;
+      }
+    }
+    return '未设置';
+  }
 
   Future<void> _transfer(WorkerAssignment worker) async {
     final targets =

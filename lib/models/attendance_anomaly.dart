@@ -13,6 +13,7 @@ class AttendanceAnomaly {
   final int expectedDayOffset;
   final double distanceMeters;
   final String anomalyMessage;
+  final String anomalyType;
   final bool resolved;
   final bool corrected;
   final bool missing;
@@ -36,6 +37,7 @@ class AttendanceAnomaly {
       required this.expectedDayOffset,
       required this.distanceMeters,
       required this.anomalyMessage,
+      required this.anomalyType,
       required this.resolved,
       required this.corrected,
       required this.missing,
@@ -62,6 +64,7 @@ class AttendanceAnomaly {
           expectedDayOffset: json['expectedDayOffset'] as int? ?? 0,
           distanceMeters: (json['distanceMeters'] as num?)?.toDouble() ?? 0,
           anomalyMessage: json['anomalyMessage'] as String? ?? '',
+          anomalyType: json['anomalyType'] as String? ?? '',
           resolved: json['resolved'] == true,
           corrected: json['corrected'] == true,
           missing: json['missing'] == true || json['anomalyType'] == 'missing',

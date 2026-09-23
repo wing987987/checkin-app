@@ -323,12 +323,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   Future<void> _addTeam() async {
     final controller = TextEditingController();
     var shiftId = shifts.first.id;
+    final extraShiftIds = <int>{};
+    String? formError;
     final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => StatefulBuilder(
             builder: (_, setLocal) => AlertDialog(
                     title: const Text('新增班组'),
-                    content: Column(
+                    content: DialogScrollView(child: Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -347,10 +349,30 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                 .map((shift) => DropdownMenuItem(
                                     value: shift.id, child: Text(shift.name)))
                                 .toList(),
-                            onChanged: (value) =>
-                                setLocal(() => shiftId = value ?? shiftId),
+                            onChanged: (value) => setLocal(() {
+                              shiftId = value ?? shiftId;
+                              extraShiftIds.remove(shiftId);
+                            }),
                           ),
-                        ]),
+                          const SizedBox(height: 16),
+                          _fieldLabel('可选附加班次'),
+                          ...shifts.where((shift) => shift.id != shiftId).map(
+                            (shift) => CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(shift.name),
+                              subtitle: const Text('不打卡不算缺勤，打卡后独立计算'),
+                              value: extraShiftIds.contains(shift.id),
+                              onChanged: (value) => setLocal(() => value == true
+                                  ? extraShiftIds.add(shift.id)
+                                  : extraShiftIds.remove(shift.id)),
+                            ),
+                          ),
+                          if (formError != null) ...[
+                            const SizedBox(height: 12),
+                            Text(formError!,
+                                style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                          ],
+                        ])),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
@@ -362,13 +384,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                 project.id, {
                               'name': controller.text.trim(),
                               'shiftId': shiftId,
+                              'extraShiftIds': extraShiftIds.toList(),
                               'status': 1
                             });
                             if (ctx.mounted) {
                               if (r.isSuccess) {
                                 Navigator.pop(ctx, true);
                               } else {
-                                _message(r.message);
+                                setLocal(() => formError = r.message);
                               }
                             }
                           },
@@ -911,12 +934,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   Future<void> _editTeam(CheckinTeam team) async {
     final name = TextEditingController(text: team.name);
     var shiftId = team.shiftId;
+    final extraShiftIds = team.extraShiftIds.toSet();
+    String? formError;
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
           builder: (_, setLocal) => AlertDialog(
                 title: const Text('编辑班组'),
-                content: Column(
+                content: DialogScrollView(child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -935,10 +960,30 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                             .map((shift) => DropdownMenuItem(
                                 value: shift.id, child: Text(shift.name)))
                             .toList(),
-                        onChanged: (value) =>
-                            setLocal(() => shiftId = value ?? shiftId),
+                        onChanged: (value) => setLocal(() {
+                          shiftId = value ?? shiftId;
+                          extraShiftIds.remove(shiftId);
+                        }),
                       ),
-                    ]),
+                      const SizedBox(height: 16),
+                      _fieldLabel('可选附加班次'),
+                      ...shifts.where((shift) => shift.id != shiftId).map(
+                        (shift) => CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(shift.name),
+                          subtitle: const Text('未打卡不产生缺勤'),
+                          value: extraShiftIds.contains(shift.id),
+                          onChanged: (value) => setLocal(() => value == true
+                              ? extraShiftIds.add(shift.id)
+                              : extraShiftIds.remove(shift.id)),
+                        ),
+                      ),
+                      if (formError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(formError!,
+                            style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                      ],
+                    ])),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
@@ -950,13 +995,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                           team.id, {
                         'name': name.text.trim(),
                         'shiftId': shiftId,
+                        'extraShiftIds': extraShiftIds.toList(),
                         'status': team.status
                       });
                       if (!ctx.mounted) return;
                       if (result.isSuccess) {
                         Navigator.pop(ctx, true);
                       } else {
-                        _message(result.message);
+                        setLocal(() => formError = result.message);
                       }
                     },
                     child: const Text('保存'),
