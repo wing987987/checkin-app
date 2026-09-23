@@ -198,7 +198,10 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
             final date = DateTime(month.year, month.month, value);
             final selected = DateUtils.isSameDay(date, selectedDate);
             final days = _daysFor(date);
-            final hasAnomaly = days.any((day) => day.status != 'normal');
+            final hasAnomaly = days.any((day) =>
+                day.status != 'normal' &&
+                day.status != 'manual' &&
+                day.status != 'in_progress');
             return InkWell(
               borderRadius: BorderRadius.circular(24),
               onTap: () => setState(() => selectedDate = date),
@@ -244,8 +247,15 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
               padding: EdgeInsets.symmetric(vertical: 36),
               child: Center(child: Text('该日暂无项目考勤记录'))));
     }
-    final normal = days.where((day) => day.status == 'normal').length;
-    final abnormal = days.length - normal;
+    final normal = days
+        .where((day) => day.status == 'normal' || day.status == 'manual')
+        .length;
+    final abnormal = days
+        .where((day) =>
+            day.status != 'normal' &&
+            day.status != 'manual' &&
+            day.status != 'in_progress')
+        .length;
     final totalUnits = days.fold<double>(0, (sum, day) => sum + day.workUnits);
     return Column(children: [
       _surface(
@@ -321,12 +331,13 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                         style: const TextStyle(color: AppColors.textSecondary)),
                   ),
                 ...day.clocks.map((clock) => _clockCard(day, clock)),
-                Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                        onPressed: () => _chooseSupplement(day),
-                        icon: const Icon(Icons.add_task_outlined),
-                        label: const Text('人工补打卡'))),
+                if (day.status != 'in_progress')
+                  Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                          onPressed: () => _chooseSupplement(day),
+                          icon: const Icon(Icons.add_task_outlined),
+                          label: const Text('人工补打卡'))),
               ],
             )),
       );
@@ -336,6 +347,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
       'normal' => '正常',
       'manual' => '主管确认',
       'pending_review' => '待确认工数',
+      'in_progress' => '班次进行中',
       'missing' => '缺卡',
       _ => '异常',
     };
@@ -343,6 +355,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
       'normal' => AppColors.success,
       'manual' => AppColors.primary,
       'pending_review' => AppColors.warning,
+      'in_progress' => AppColors.primary,
       _ => AppColors.danger,
     };
     return Container(
@@ -390,9 +403,17 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
   Widget _clockCard(DailyAttendance day, AttendanceClockDetail clock) {
     final missing = clock.status == 'missing';
     final abnormal = !missing && !clock.countable;
-    final color = missing || abnormal ? AppColors.warning : AppColors.success;
+    final color = missing && day.status == 'in_progress'
+        ? AppColors.primary
+        : missing || abnormal
+            ? AppColors.warning
+            : AppColors.success;
     final label = missing
-        ? '未打卡'
+        ? day.status == 'in_progress'
+            ? '待打卡'
+            : clock.acknowledgedMissing
+                ? '已确认缺卡'
+                : '未打卡'
         : abnormal
             ? '异常'
             : '有效';
@@ -424,6 +445,12 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         Text(
             '标准：${clock.expectedDayOffset > 0 ? '次日 ' : ''}${clock.expectedTime}',
             style: const TextStyle(color: AppColors.textSecondary)),
+        if (clock.acknowledgedMissing)
+          const Text('主管已确认保留缺卡，不计入工时和工数',
+              style: TextStyle(color: AppColors.warning, fontSize: 12)),
+        if (missing && day.status == 'in_progress')
+          const Text('班次尚未结束，暂不能判定为缺卡',
+              style: TextStyle(color: AppColors.primary, fontSize: 12)),
         if (clock.originalTime.isNotEmpty)
           Text('原始：${_dateTime(clock.originalTime)}',
               style: const TextStyle(color: AppColors.textSecondary)),
@@ -448,7 +475,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
             (clock.recordId != null && clock.anomalyMessage.isNotEmpty)) ...[
           const SizedBox(height: 7),
           Wrap(spacing: 6, runSpacing: 4, children: [
-            if (missing && clock.checkpointId != null)
+            if (missing &&
+                day.status != 'in_progress' &&
+                clock.checkpointId != null)
               TextButton.icon(
                   onPressed: () => _supplementMissing(day, clock),
                   icon: const Icon(Icons.add_task_outlined, size: 18),
@@ -858,8 +887,15 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
 
   Widget _monthView() {
     final value = report!;
-    final normal = value.days.where((day) => day.status == 'normal').length;
-    final abnormal = value.days.length - normal;
+    final normal = value.days
+        .where((day) => day.status == 'normal' || day.status == 'manual')
+        .length;
+    final abnormal = value.days
+        .where((day) =>
+            day.status != 'normal' &&
+            day.status != 'manual' &&
+            day.status != 'in_progress')
+        .length;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),

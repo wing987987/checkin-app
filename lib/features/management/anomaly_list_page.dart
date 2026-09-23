@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:dio/dio.dart';
 import '../../models/attendance_anomaly.dart';
 import '../../models/attendance_report.dart';
 import '../../models/checkin_project.dart';
@@ -108,7 +109,7 @@ class _ManualHoursDialogState extends State<ManualHoursDialog> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
-                    labelText: '确认工数', hintText: '例如 0.5'),
+                    labelText: '确认工数', hintText: '例如 0.5；有问题可填 0'),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -405,6 +406,15 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                       child: const Text('确认并自动调整')),
                 ]));
     if (action == null || !mounted) return;
+    if (action == 'reject' &&
+        !await _confirmRetain(
+          item,
+          title: '确认保持异常？',
+          detail: '这条打卡仍保持异常，不计入工时和工数，并从待处理列表移除。之后可在考勤报表重新处理。',
+        )) {
+      return;
+    }
+    if (!mounted) return;
     final result = await ManagementService.resolveAnomaly(recordId, {
       'action': action,
     });
@@ -509,6 +519,11 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
               onPressed: () => Navigator.pop(ctx, 'manual'),
               child: const Text('确认工时/工数')),
           if (item.checkpointId != null)
+            TextButton(
+                style: TextButton.styleFrom(foregroundColor: AppColors.warning),
+                onPressed: () => Navigator.pop(ctx, 'acknowledge'),
+                child: const Text('确认保留缺卡')),
+          if (item.checkpointId != null)
             FilledButton.icon(
                 onPressed: () => Navigator.pop(ctx, 'supplement'),
                 icon: const Icon(Icons.add_task_outlined),
@@ -518,6 +533,67 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
     );
     if (action == 'supplement' && mounted) await _supplementMissing(item);
     if (action == 'manual' && mounted) await _confirmManual(item);
+    if (action == 'acknowledge' && mounted) await _acknowledgeMissing(item);
+  }
+
+  Future<void> _acknowledgeMissing(AttendanceAnomaly item) async {
+    final checkpointId = item.checkpointId;
+    if (checkpointId == null) return;
+    if (!await _confirmRetain(
+      item,
+      title: '确认保留缺卡？',
+      detail: '这个节点仍保持缺卡，不计入工时和工数，并从待处理列表移除。之后仍可在考勤报表补卡。',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    try {
+      final result = await ManagementService.acknowledgeMissing(
+          item.referenceRecordId, checkpointId);
+      if (!mounted) return;
+      if (result.isSuccess) {
+        await _load();
+      } else {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(result.message)));
+      }
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final message = error.response?.statusCode == 404
+          ? '当前后端尚未更新“确认保留缺卡”功能，请更新并重启后端服务'
+          : '确认保留缺卡失败，请检查网络或稍后重试';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('确认保留缺卡失败，请稍后重试')));
+    }
+  }
+
+  Future<bool> _confirmRetain(AttendanceAnomaly item,
+      {required String title, required String detail}) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded,
+            color: AppColors.warning, size: 38),
+        title: Text(title),
+        content: Text('${item.workerName} · ${item.attendanceDate}\n'
+            '${item.shiftName} / ${item.checkpointName}\n\n$detail'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('返回')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('确定保留'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   Future<void> _confirmManual(AttendanceAnomaly item) async {

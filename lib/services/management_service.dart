@@ -292,6 +292,18 @@ class ManagementService {
     return ApiResult.fromJson(response.data, (value) => value);
   }
 
+  static Future<ApiResult<dynamic>> acknowledgeMissing(
+      int referenceRecordId, int checkpointId) async {
+    final response = await _client.post(
+      '/api/ck/attendance/missing/acknowledge',
+      data: {
+        'referenceRecordId': referenceRecordId,
+        'checkpointId': checkpointId,
+      },
+    );
+    return ApiResult.fromJson(response.data, (value) => value);
+  }
+
   static Future<ApiResult<Map<String, dynamic>>> supplementClock(
       Map<String, dynamic> data) async {
     final response =

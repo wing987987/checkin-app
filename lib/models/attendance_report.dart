@@ -3,7 +3,7 @@ class AttendanceClockDetail {
   final int expectedDayOffset;
   final String checkpointName, expectedTime, clockTime, originalTime;
   final String status, anomalyMessage, adjustmentAction, correctionReason;
-  final bool countable, corrected, hasPhoto;
+  final bool countable, corrected, hasPhoto, acknowledgedMissing;
 
   const AttendanceClockDetail({
     this.recordId,
@@ -20,6 +20,7 @@ class AttendanceClockDetail {
     required this.countable,
     required this.corrected,
     required this.hasPhoto,
+    this.acknowledgedMissing = false,
   });
 
   factory AttendanceClockDetail.fromJson(Map<String, dynamic> j) =>
@@ -38,6 +39,7 @@ class AttendanceClockDetail {
         countable: j['countable'] == true,
         corrected: j['corrected'] == true,
         hasPhoto: j['hasPhoto'] == true,
+        acknowledgedMissing: j['acknowledgedMissing'] == true,
       );
 }
 
@@ -187,11 +189,11 @@ class ProjectMonthReport {
   Map<String, List<ProjectWorkerReport>> get workersByJobType {
     final groups = <String, List<ProjectWorkerReport>>{};
     for (final worker in workers) {
-      final jobType = worker.jobType.trim().isEmpty
-          ? '未设置工种' : worker.jobType.trim();
+      final jobType =
+          worker.jobType.trim().isEmpty ? '未设置工种' : worker.jobType.trim();
       groups.putIfAbsent(jobType, () => []).add(worker);
     }
-    return Map.fromEntries(groups.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key)));
+    return Map.fromEntries(
+        groups.entries.toList()..sort((a, b) => a.key.compareTo(b.key)));
   }
 }

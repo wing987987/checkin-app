@@ -241,7 +241,10 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
     final attendance = _attendanceFor(date);
     final selected = DateUtils.isSameDay(date, selectedDate);
     final today = DateUtils.isSameDay(date, DateTime.now());
-    final abnormal = attendance != null && attendance.status != 'normal';
+    final abnormal = attendance != null &&
+        attendance.status != 'normal' &&
+        attendance.status != 'manual' &&
+        attendance.status != 'in_progress';
     return InkWell(
       borderRadius: BorderRadius.circular(24),
       onTap: () => setState(() => selectedDate = date),
@@ -328,14 +331,15 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
       else
         ...List.generate(
             day.clocks.length,
-            (index) =>
-                _timelineClock(day.clocks[index], index, day.clocks.length)),
+            (index) => _timelineClock(day.clocks[index], index,
+                day.clocks.length, day.status == 'in_progress')),
     ]));
   }
 
-  Widget _timelineClock(AttendanceClockDetail clock, int index, int count) {
+  Widget _timelineClock(
+      AttendanceClockDetail clock, int index, int count, bool inProgress) {
     final missing = clock.status == 'missing';
-    final warning = missing || !clock.countable;
+    final warning = (missing && !inProgress) || (!missing && !clock.countable);
     return IntrinsicHeight(
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SizedBox(
@@ -377,7 +381,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
                   icon: const Icon(Icons.photo_camera_outlined, color: _blue)),
           ]),
           const SizedBox(height: 3),
-          Text(_clockDescription(clock),
+          Text(_clockDescription(clock, inProgress),
               style: TextStyle(
                   color:
                       warning ? Colors.orange[800] : const Color(0xFF62636A))),
@@ -393,7 +397,9 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
 
   Widget _monthlyReport() {
     final value = report!;
-    final normalDays = value.days.where((day) => day.status == 'normal').length;
+    final normalDays = value.days
+        .where((day) => day.status == 'normal' || day.status == 'manual')
+        .length;
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
@@ -457,11 +463,14 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
               subtitle:
                   Text('工时 ${_hours(day.workHours)} · 工数 ${day.workUnits}'),
               trailing: _statusBadge(day),
-              children: day.clocks.map(_compactClock).toList(),
+              children: day.clocks
+                  .map((clock) =>
+                      _compactClock(clock, day.status == 'in_progress'))
+                  .toList(),
             )),
       );
 
-  Widget _compactClock(AttendanceClockDetail clock) {
+  Widget _compactClock(AttendanceClockDetail clock, bool inProgress) {
     final missing = clock.status == 'missing';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
@@ -473,7 +482,9 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
                     ? Icons.check_circle_outline
                     : Icons.error_outline,
             size: 20,
-            color: missing || !clock.countable ? Colors.orange : _blue),
+            color: (missing && !inProgress) || (!missing && !clock.countable)
+                ? Colors.orange
+                : _blue),
         const SizedBox(width: 10),
         Expanded(
             child:
@@ -490,7 +501,8 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
               tooltip: '查看打卡照片',
               onPressed: () => _showClockPhoto(clock),
               icon: const Icon(Icons.photo_camera_outlined, color: _blue)),
-        Text(missing ? '未打卡' : _shortTime(clock.clockTime),
+        Text(
+            missing ? (inProgress ? '待打卡' : '缺卡') : _shortTime(clock.clockTime),
             style: const TextStyle(fontWeight: FontWeight.w600)),
       ]),
     );
@@ -543,14 +555,21 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
 
   Widget _statusBadge(DailyAttendance day) {
     final normal = day.status == 'normal';
+    final inProgress = day.status == 'in_progress';
     final text = normal
         ? '正常'
-        : day.status == 'missing'
-            ? '缺卡'
-            : day.status == 'manual'
-                ? '人工工时'
-                : '异常';
-    final color = normal ? const Color(0xFF00B42A) : Colors.orange[800]!;
+        : inProgress
+            ? '班次进行中'
+            : day.status == 'missing'
+                ? '缺卡'
+                : day.status == 'manual'
+                    ? '人工工时'
+                    : '异常';
+    final color = normal
+        ? const Color(0xFF00B42A)
+        : inProgress
+            ? _blue
+            : Colors.orange[800]!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -633,7 +652,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
     return value.length >= 5 ? value.substring(0, 5) : value;
   }
 
-  String _clockDescription(AttendanceClockDetail clock) {
+  String _clockDescription(AttendanceClockDetail clock, bool inProgress) {
     if (clock.checkpointName.startsWith('加班')) {
       if (!clock.countable) {
         return clock.anomalyMessage.isEmpty ? '加班打卡异常' : clock.anomalyMessage;
@@ -641,7 +660,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
       return clock.corrected ? '加班打卡 · 已修正' : '加班打卡 · 正常';
     }
     if (clock.status == 'missing') {
-      return '未打卡 · 标准 ${_shortTime(clock.expectedTime)}';
+      return '${inProgress ? '待打卡' : '缺卡'} · 标准 ${_shortTime(clock.expectedTime)}';
     }
     final parts = <String>[
       clock.countable
