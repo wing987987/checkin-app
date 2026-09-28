@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
@@ -90,15 +91,16 @@ class _UserAccountMenuState extends State<UserAccountMenu> {
               title: Text('工种管理'),
             ),
           ),
-        PopupMenuItem(
-          value: 'update',
-          enabled: !checking,
-          child: const ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.system_update_outlined),
-              title: Text('检查更新')),
-        ),
+        if (!kIsWeb)
+          PopupMenuItem(
+            value: 'update',
+            enabled: !checking,
+            child: const ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.system_update_outlined),
+                title: Text('检查更新')),
+          ),
         const PopupMenuDivider(),
         const PopupMenuItem(
           value: 'logout',

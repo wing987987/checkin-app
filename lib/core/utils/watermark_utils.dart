@@ -1,18 +1,20 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class WatermarkedPhoto {
-  final String path;
+  final Uint8List bytes;
+  final String filename;
+  final String subtype;
   final int uncompressedBytes;
   final int compressedBytes;
 
   const WatermarkedPhoto({
-    required this.path,
+    required this.bytes,
+    required this.filename,
+    required this.subtype,
     required this.uncompressedBytes,
     required this.compressedBytes,
   });
@@ -61,22 +63,27 @@ class WatermarkUtils {
     final data = await image.toByteData(format: ui.ImageByteFormat.png);
     final uncompressed = data!.buffer.asUint8List();
     Uint8List compressed = uncompressed;
-    // 水印合成后的 PNG 通常很大。逐级降低 JPEG 质量，优先保持 86 的高画质，
-    // 仅在文件仍超过 900 KB 时继续压缩，最低质量 74。
-    for (final quality in const [86, 82, 78, 74]) {
-      compressed = await FlutterImageCompress.compressWithList(
-        uncompressed,
-        quality: quality,
-        format: CompressFormat.jpeg,
-      );
-      if (compressed.length <= 900 * 1024) break;
+    // 浏览器无法访问本地临时文件；直接使用内存图片上传。
+    // Web 压缩插件不可用时保留 PNG，服务端同时接受 JPEG 和 PNG。
+    var isJpeg = false;
+    try {
+      for (final quality in const [86, 82, 78, 74]) {
+        compressed = await FlutterImageCompress.compressWithList(
+          uncompressed,
+          quality: quality,
+          format: CompressFormat.jpeg,
+        );
+        isJpeg = compressed.isNotEmpty;
+        if (compressed.length <= 900 * 1024) break;
+      }
+    } catch (_) {
+      if (!kIsWeb) rethrow;
+      compressed = uncompressed;
     }
-    final dir = await getTemporaryDirectory();
-    final file = File(
-        '${dir.path}${Platform.pathSeparator}clock_${DateTime.now().microsecondsSinceEpoch}.jpg');
-    await file.writeAsBytes(compressed, flush: true);
     return WatermarkedPhoto(
-      path: file.path,
+      bytes: compressed,
+      filename: isJpeg ? 'clock.jpg' : 'clock.png',
+      subtype: isJpeg ? 'jpeg' : 'png',
       uncompressedBytes: uncompressed.length,
       compressedBytes: compressed.length,
     );

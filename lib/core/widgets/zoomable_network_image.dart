@@ -29,6 +29,7 @@ class ZoomableNetworkImage extends StatelessWidget {
           child: Center(
             child: Image.network(
               url,
+              webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
               width: imageWidth,
               height: imageHeight,
               fit: BoxFit.contain,

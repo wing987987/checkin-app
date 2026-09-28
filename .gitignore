@@ -50,3 +50,4 @@ app.*.map.json
 
 # Local OSS publishing credentials (never commit)
 /tool/oss-credentials.local.bat
+/tool/web-deploy.local.ps1

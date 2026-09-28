@@ -181,6 +181,7 @@ class _ClockPhotoArchivePageState extends State<ClockPhotoArchivePage> {
             return const Center(child: Icon(Icons.broken_image_outlined));
           }
           return Image.network(url,
+              webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) =>
                   const Center(child: Icon(Icons.broken_image_outlined)));

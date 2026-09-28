@@ -1,13 +1,7 @@
-import 'dart:io';
-
-import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_cache/flutter_map_cache.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http_cache_file_store/http_cache_file_store.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../core/config/env_config.dart';
 import '../../services/management_service.dart';
@@ -23,7 +17,6 @@ class ProjectLocationPickerPage extends StatefulWidget {
 }
 
 class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
-  static final Future<CacheStore> _tileCacheStore = _createTileCacheStore();
   final _nameController = TextEditingController();
   final _mapController = MapController();
 
@@ -34,13 +27,6 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
   bool _mapReady = false;
   bool _permissionPermanentlyDenied = false;
   String? _locationError;
-
-  static Future<CacheStore> _createTileCacheStore() async {
-    final directory = await getTemporaryDirectory();
-    return FileCacheStore(
-      '${directory.path}${Platform.pathSeparator}tianditu_map_tiles',
-    );
-  }
 
   @override
   void initState() {
@@ -301,74 +287,52 @@ class _ProjectLocationPickerPageState extends State<ProjectLocationPickerPage> {
         height: 330,
         child: Stack(
           children: [
-            FutureBuilder<CacheStore>(
-              future: _tileCacheStore,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _center!,
-                    initialZoom: _zoomForRadius(_radius),
-                    minZoom: 3,
-                    maxZoom: 18,
-                    onMapReady: () {
-                      _mapReady = true;
-                      final center = _center;
-                      if (mounted && center != null) {
-                        _moveMapIfReady(center, _zoomForRadius(_radius));
-                      }
-                    },
-                    onPositionChanged: (camera, hasGesture) {
-                      if (hasGesture && mounted) {
-                        setState(() => _center = camera.center);
-                      }
-                    },
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: EnvConfig.instance.mapBaseTileUrl,
-                      subdomains: EnvConfig.instance.mapSubdomains,
-                      maxNativeZoom: 18,
-                      userAgentPackageName: EnvConfig.instance.mapUserAgent,
-                      tileProvider: CachedTileProvider(
-                        store: snapshot.data!,
-                        maxStale: const Duration(days: 7),
-                        headers: {
-                          'User-Agent': EnvConfig.instance.mapUserAgent,
-                        },
-                      ),
-                    ),
-                    TileLayer(
-                      urlTemplate: EnvConfig.instance.mapLabelTileUrl,
-                      subdomains: EnvConfig.instance.mapSubdomains,
-                      maxNativeZoom: 18,
-                      userAgentPackageName: EnvConfig.instance.mapUserAgent,
-                      tileProvider: CachedTileProvider(
-                        store: snapshot.data!,
-                        maxStale: const Duration(days: 7),
-                        headers: {
-                          'User-Agent': EnvConfig.instance.mapUserAgent,
-                        },
-                      ),
-                    ),
-                    CircleLayer(
-                      circles: [
-                        CircleMarker(
-                          point: _center!,
-                          radius: _radius.toDouble(),
-                          useRadiusInMeter: true,
-                          color: Colors.green.withValues(alpha: 0.14),
-                          borderColor: Colors.green,
-                          borderStrokeWidth: 2,
-                        ),
-                      ],
+            FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: _center!,
+                initialZoom: _zoomForRadius(_radius),
+                minZoom: 3,
+                maxZoom: 18,
+                onMapReady: () {
+                  _mapReady = true;
+                  final center = _center;
+                  if (mounted && center != null) {
+                    _moveMapIfReady(center, _zoomForRadius(_radius));
+                  }
+                },
+                onPositionChanged: (camera, hasGesture) {
+                  if (hasGesture && mounted) {
+                    setState(() => _center = camera.center);
+                  }
+                },
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: EnvConfig.instance.mapBaseTileUrl,
+                  subdomains: EnvConfig.instance.mapSubdomains,
+                  maxNativeZoom: 18,
+                  userAgentPackageName: EnvConfig.instance.mapUserAgent,
+                ),
+                TileLayer(
+                  urlTemplate: EnvConfig.instance.mapLabelTileUrl,
+                  subdomains: EnvConfig.instance.mapSubdomains,
+                  maxNativeZoom: 18,
+                  userAgentPackageName: EnvConfig.instance.mapUserAgent,
+                ),
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: _center!,
+                      radius: _radius.toDouble(),
+                      useRadiusInMeter: true,
+                      color: Colors.green.withValues(alpha: 0.14),
+                      borderColor: Colors.green,
+                      borderStrokeWidth: 2,
                     ),
                   ],
-                );
-              },
+                ),
+              ],
             ),
             const IgnorePointer(
               child: Center(

@@ -1,12 +1,18 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/auth_storage_keys.dart';
 import '../config/env_config.dart';
 
 class DioClient {
+  static String _apiPath(String path) => kIsWeb && path.startsWith('/api/')
+      ? '${EnvConfig.instance.webApiPrefix}$path'
+      : path;
+
   DioClient._internal() {
     final env = EnvConfig.instance;
-    final baseUrl = kDebugMode ? env.debugBaseUrl : env.baseUrl;
+    final baseUrl =
+        kIsWeb ? env.baseUrl : (kDebugMode ? env.debugBaseUrl : env.baseUrl);
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 30),
@@ -20,7 +26,7 @@ class DioClient {
         print('[Dio] 请求: ${options.method} ${options.path}');
         if (_cachedToken == null) {
           final prefs = await SharedPreferences.getInstance();
-          _cachedToken = prefs.getString('token');
+          _cachedToken = prefs.getString(AuthStorageKeys.token);
         }
         if (_cachedToken != null) {
           options.headers['Authorization'] = 'Bearer $_cachedToken';
@@ -36,7 +42,7 @@ class DioClient {
         print(
             '[Dio] 错误: ${error.requestOptions.path} → ${error.message}, 状态码: ${error.response?.statusCode}');
         if (error.response?.statusCode == 401 &&
-            error.requestOptions.path != '/api/ck/auth/refresh' &&
+            error.requestOptions.path != _apiPath('/api/ck/auth/refresh') &&
             error.requestOptions.extra['tokenRetried'] != true) {
           if (await _refreshOnce()) {
             final request = error.requestOptions;
@@ -88,11 +94,12 @@ class DioClient {
 
   Future<bool> _refreshTokens() async {
     final prefs = await SharedPreferences.getInstance();
-    final refreshToken = prefs.getString('refreshToken');
+    final refreshToken = prefs.getString(AuthStorageKeys.refreshToken);
     if (refreshToken == null || refreshToken.isEmpty) return false;
     try {
       final refreshDio = Dio(_dio.options);
-      final response = await refreshDio.post('/api/ck/auth/refresh', data: {
+      final response =
+          await refreshDio.post(_apiPath('/api/ck/auth/refresh'), data: {
         'refreshToken': refreshToken,
       });
       final data = response.data is Map ? response.data['data'] : null;
@@ -101,8 +108,8 @@ class DioClient {
           data is Map ? data['refreshToken'] as String? : null;
       if (token == null || newRefreshToken == null) return false;
       _cachedToken = token;
-      await prefs.setString('token', token);
-      await prefs.setString('refreshToken', newRefreshToken);
+      await prefs.setString(AuthStorageKeys.token, token);
+      await prefs.setString(AuthStorageKeys.refreshToken, newRefreshToken);
       onTokenRefreshed?.call(token);
       return true;
     } catch (_) {
@@ -113,29 +120,29 @@ class DioClient {
   Future<void> _clearTokens() async {
     _cachedToken = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('refreshToken');
+    await prefs.remove(AuthStorageKeys.token);
+    await prefs.remove(AuthStorageKeys.refreshToken);
   }
 
   Dio get dio => _dio;
 
   Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) {
-    return _dio.get(path, queryParameters: queryParameters);
+    return _dio.get(_apiPath(path), queryParameters: queryParameters);
   }
 
   Future<Response> post(String path, {dynamic data}) {
-    return _dio.post(path, data: data);
+    return _dio.post(_apiPath(path), data: data);
   }
 
   Future<Response> put(String path, {dynamic data}) {
-    return _dio.put(path, data: data);
+    return _dio.put(_apiPath(path), data: data);
   }
 
   Future<Response> delete(String path) {
-    return _dio.delete(path);
+    return _dio.delete(_apiPath(path));
   }
 
   Future<Response> upload(String path, FormData formData) {
-    return _dio.post(path, data: formData);
+    return _dio.post(_apiPath(path), data: formData);
   }
 }

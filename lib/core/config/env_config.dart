@@ -21,6 +21,7 @@ class EnvConfig {
   String get baseUrl => _baseUrl;
   bool get isProd => _env == 'prod';
   bool get isTest => _env == 'test';
+  String get webApiPrefix => isProd ? '/app' : '/apptest';
 
   /// 测试专属 UI（快捷登录等）是否可见：
   /// debug 运行（本地 F5）始终可见；release 包按 ENV 判断，prod 包编译期剔除。
@@ -48,6 +49,9 @@ class EnvConfig {
       );
 
   String _resolveBaseUrl() {
+    if (kIsWeb) {
+      return 'https://www.zhaochen-construction.com';
+    }
     switch (_env) {
       case 'prod':
         return 'http://app.zhaochen-construction.com';

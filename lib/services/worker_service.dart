@@ -2,6 +2,7 @@ import '../core/models/api_result.dart';
 import '../core/network/dio_client.dart';
 import '../models/my_schedule.dart';
 import 'package:dio/dio.dart';
+import 'dart:typed_data';
 import '../models/attendance_report.dart';
 
 class WorkerService {
@@ -11,14 +12,15 @@ class WorkerService {
         (data) => MySchedule.fromJson(Map<String, dynamic>.from(data)));
   }
 
-  static Future<ApiResult<String>> uploadPhoto(String path) async {
+  static Future<ApiResult<String>> uploadPhoto(Uint8List bytes,
+      {String filename = 'clock.jpg', String subtype = 'jpeg'}) async {
     ApiResult<String>? lastResult;
     Object? lastError;
     for (var attempt = 1; attempt <= 3; attempt++) {
       try {
         final form = FormData.fromMap({
-          'file': await MultipartFile.fromFile(path,
-              filename: 'clock.jpg', contentType: DioMediaType('image', 'jpeg'))
+          'file': MultipartFile.fromBytes(bytes,
+              filename: filename, contentType: DioMediaType('image', subtype))
         });
         final response =
             await DioClient.instance.upload('/api/ck/files/clock-photo', form);

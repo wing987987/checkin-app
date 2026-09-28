@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'features/auth/login_page.dart';
@@ -52,7 +53,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     context.read<AuthProvider>().loadToken();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdate());
+    if (!kIsWeb) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdate());
+    }
   }
 
   Future<void> _checkUpdate() async {

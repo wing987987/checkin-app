@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/config/auth_storage_keys.dart';
 import '../core/network/dio_client.dart';
 import '../models/user_info.dart';
 import '../services/auth_service.dart';
@@ -36,7 +37,7 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedToken = prefs.getString('token');
+      final savedToken = prefs.getString(AuthStorageKeys.token);
       _token = savedToken != null && savedToken.trim().isNotEmpty
           ? savedToken
           : null;
@@ -67,8 +68,8 @@ class AuthProvider extends ChangeNotifier {
       _currentUser = data.user;
       DioClient.instance.updateToken(_token);
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', _token!);
-      await prefs.setString('refreshToken', data.refreshToken);
+      await prefs.setString(AuthStorageKeys.token, _token!);
+      await prefs.setString(AuthStorageKeys.refreshToken, data.refreshToken);
     } else {
       _error = result.message.isEmpty ? '登录失败' : result.message;
     }
@@ -87,8 +88,8 @@ class AuthProvider extends ChangeNotifier {
     _token = null;
     DioClient.instance.updateToken(null);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('refreshToken');
+    await prefs.remove(AuthStorageKeys.token);
+    await prefs.remove(AuthStorageKeys.refreshToken);
   }
 
   void _handleUnauthorized() {

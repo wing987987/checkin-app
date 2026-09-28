@@ -4,9 +4,11 @@ import '../../models/my_schedule.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/worker_service.dart';
 import '../../core/utils/watermark_utils.dart';
+import '../../core/utils/photo_cleanup_stub.dart'
+    if (dart.library.io) '../../core/utils/photo_cleanup_io.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
-import 'dart:io';
+import 'package:camera/camera.dart';
 import 'worker_report_page.dart';
 import '../../core/widgets/test_account_switcher.dart';
 import '../../core/models/api_result.dart';
@@ -430,8 +432,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
   Future<void> _clock({bool overtime = false, MySchedule? target}) async {
     final value = target ?? schedule!;
     final user = context.read<AuthProvider>().currentUser;
-    String? sourcePhotoPath;
-    String? watermarkedPhotoPath;
+    XFile? sourcePhoto;
     try {
       setState(() {
         clocking = true;
@@ -470,14 +471,14 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         if (proceed != true) return;
       }
       if (!mounted) return;
-      final photoPath = await Navigator.push<String>(
+      final photo = await Navigator.push<XFile>(
           context, MaterialPageRoute(builder: (_) => const ClockCameraPage()));
-      if (!mounted || photoPath == null) return;
-      sourcePhotoPath = photoPath;
+      if (!mounted || photo == null) return;
+      sourcePhoto = photo;
       final now = DateTime.now();
       setState(() => clockingStatus = '正在添加水印…');
-      final watermarked = await WatermarkUtils.addClockWatermark(
-          await File(photoPath).readAsBytes(), [
+      final watermarked =
+          await WatermarkUtils.addClockWatermark(await photo.readAsBytes(), [
         overtime ? '加班打卡' : '${value.shiftName}打卡',
         value.projectName,
         user?.realName ?? user?.username ?? '',
@@ -485,14 +486,11 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
         'GPS ${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
         'Distance ${distance.round()}m',
       ]);
-      watermarkedPhotoPath = watermarked.path;
-      await _deleteTemporaryFile(sourcePhotoPath);
-      sourcePhotoPath = null;
       if (mounted) {
-        setState(() =>
-            clockingStatus = '照片已压缩 ${watermarked.reductionPercent}%，正在上传…');
+        setState(() => clockingStatus = '正在上传照片…');
       }
-      final uploaded = await WorkerService.uploadPhoto(watermarked.path);
+      final uploaded = await WorkerService.uploadPhoto(watermarked.bytes,
+          filename: watermarked.filename, subtype: watermarked.subtype);
       if (!uploaded.isSuccess || uploaded.data == null) {
         throw Exception(uploaded.message);
       }
@@ -511,8 +509,6 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       if (!result.isSuccess) {
         throw Exception(result.message);
       }
-      await _deleteTemporaryFile(watermarkedPhotoPath);
-      watermarkedPhotoPath = null;
       if (mounted) {
         final anomalyType = result.data?['anomalyType']?.toString() ?? '';
         final anomalyMessage = result.data?['anomalyMessage']?.toString();
@@ -552,9 +548,8 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
             backgroundColor: Colors.red));
       }
     } finally {
-      await _deleteTemporaryFile(sourcePhotoPath);
-      if (watermarkedPhotoPath != null) {
-        await _deleteTemporaryFile(watermarkedPhotoPath);
+      if (sourcePhoto != null) {
+        await deleteTemporaryPhoto(sourcePhoto.path);
       }
       if (mounted) {
         setState(() {
@@ -562,14 +557,6 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
           clockingStatus = null;
         });
       }
-    }
-  }
-
-  Future<void> _deleteTemporaryFile(String? path) async {
-    if (path == null || path.isEmpty) return;
-    final file = File(path);
-    if (await file.exists()) {
-      await file.delete();
     }
   }
 }

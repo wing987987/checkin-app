@@ -1,4 +1,5 @@
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class ClockCameraPage extends StatefulWidget {
@@ -26,7 +27,7 @@ class _ClockCameraPageState extends State<ClockCameraPage>
   Future<void> _initialize([CameraLensDirection? preferred]) async {
     try {
       _cameras = await availableCameras();
-      if (_cameras.isEmpty) throw Exception('手机未检测到可用摄像头');
+      if (_cameras.isEmpty) throw Exception('未检测到可用摄像头');
       if (preferred != null) {
         final index = _cameras.indexWhere((c) => c.lensDirection == preferred);
         if (index >= 0) _cameraIndex = index;
@@ -85,7 +86,7 @@ class _ClockCameraPageState extends State<ClockCameraPage>
     setState(() => _capturing = true);
     try {
       final photo = await controller.takePicture();
-      if (mounted) Navigator.pop(context, photo.path);
+      if (mounted) Navigator.pop(context, photo);
     } catch (error) {
       if (mounted) {
         setState(() {
@@ -143,21 +144,40 @@ class _ClockCameraPageState extends State<ClockCameraPage>
             )
           : controller == null || !controller.value.isInitialized
               ? const Center(child: CircularProgressIndicator())
-              : OrientationBuilder(
-                  builder: (context, orientation) {
-                    final cameraAspectRatio = controller.value.aspectRatio;
-                    final previewAspectRatio =
-                        orientation == Orientation.portrait
-                            ? 1 / cameraAspectRatio
-                            : cameraAspectRatio;
-                    return Center(
-                      child: AspectRatio(
-                        aspectRatio: previewAspectRatio,
-                        child: CameraPreview(controller),
+              : kIsWeb
+                  ? Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 480),
+                        child: AspectRatio(
+                          aspectRatio: 3 / 4,
+                          child: ClipRect(
+                            child: FittedBox(
+                              fit: BoxFit.cover,
+                              child: SizedBox(
+                                width: 1000 * controller.value.aspectRatio,
+                                height: 1000,
+                                child: CameraPreview(controller),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                ),
+                    )
+                  : OrientationBuilder(
+                      builder: (context, orientation) {
+                        final cameraAspectRatio = controller.value.aspectRatio;
+                        final previewAspectRatio =
+                            orientation == Orientation.portrait
+                                ? 1 / cameraAspectRatio
+                                : cameraAspectRatio;
+                        return Center(
+                          child: AspectRatio(
+                            aspectRatio: previewAspectRatio,
+                            child: CameraPreview(controller),
+                          ),
+                        );
+                      },
+                    ),
       bottomNavigationBar: SafeArea(
         child: SizedBox(
           height: 104,
