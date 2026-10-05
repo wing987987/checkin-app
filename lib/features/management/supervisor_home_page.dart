@@ -11,6 +11,8 @@ import 'project_management_page.dart';
 import 'supervisor_management_page.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../worker/worker_home_page.dart';
+import '../worker/worker_report_page.dart';
 
 class SupervisorHomePage extends StatefulWidget {
   const SupervisorHomePage({super.key});
@@ -56,6 +58,29 @@ class _SupervisorHomePageState extends State<SupervisorHomePage> {
         leadingWidth: 150,
         leading: const UserAccountMenu(),
         title: const Text('项目管理'),
+        bottom: !isBoss
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(48),
+                child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton.icon(
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const WorkerHomePage(showBack: true))),
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('我的打卡')),
+                      TextButton.icon(
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const WorkerReportPage())),
+                          icon: const Icon(Icons.assessment_outlined),
+                          label: const Text('我的统计')),
+                    ]))
+            : null,
         actions: [
           if (isBoss)
             IconButton(

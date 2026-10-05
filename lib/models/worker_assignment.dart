@@ -1,4 +1,5 @@
 class WorkerAssignment {
+  final String role;
   final int workerId;
   final String username;
   final String realName;
@@ -17,6 +18,7 @@ class WorkerAssignment {
 
   const WorkerAssignment(
       {required this.workerId,
+      this.role = 'worker',
       required this.username,
       required this.realName,
       this.jobType,
@@ -34,6 +36,7 @@ class WorkerAssignment {
 
   factory WorkerAssignment.fromJson(Map<String, dynamic> json) =>
       WorkerAssignment(
+        role: json['role'] as String? ?? 'worker',
         workerId: json['workerId'] as int,
         username: json['username'] as String? ?? '',
         realName: json['realName'] as String? ?? '',
@@ -49,6 +52,7 @@ class WorkerAssignment {
         status: json['status'] as int? ?? 1,
         extraShiftOverride: json['extraShiftOverride'] == true,
         extraShiftIds: (json['extraShiftIds'] as List? ?? const [])
-            .map((e) => e as int).toList(),
+            .map((e) => e as int)
+            .toList(),
       );
 }

@@ -23,7 +23,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_background.dart';
 
 class WorkerHomePage extends StatefulWidget {
-  const WorkerHomePage({super.key});
+  final bool showBack;
+  const WorkerHomePage({super.key, this.showBack = false});
   @override
   State<WorkerHomePage> createState() => _WorkerHomePageState();
 }
@@ -66,8 +67,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-            leadingWidth: 160,
-            leading: const UserAccountMenu(),
+            leadingWidth: widget.showBack ? 56 : 160,
+            leading:
+                widget.showBack ? const BackButton() : const UserAccountMenu(),
             title: const Text('今日打卡'),
             actions: [
               const TestAccountSwitcher(),

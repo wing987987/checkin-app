@@ -12,6 +12,34 @@ import '../models/checkin_supervisor.dart';
 import '../models/checkin_job_type.dart';
 
 class ManagementService {
+  static Future<ApiResult<List<Map<String, dynamic>>>> attendanceSupervisors(
+      int projectId) async {
+    final r =
+        await _client.get('/api/ck/projects/$projectId/attendance-supervisors');
+    return ApiResult.fromJson(
+        r.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
+  static Future<ApiResult<List<Map<String, dynamic>>>> noWorkRequests(
+      int projectId) async {
+    final response = await _client.get('/api/ck/attendance/no-work',
+        queryParameters: {'projectId': projectId});
+    return ApiResult.fromJson(
+        response.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
+  static Future<ApiResult<void>> decideNoWork(
+      int id, String action, String reason) async {
+    final response = await _client.post(
+        '/api/ck/attendance/no-work/$id/decision',
+        data: {'action': action, 'reason': reason});
+    return ApiResult.fromJson(response.data, (_) {});
+  }
+
   static final _client = DioClient.instance;
 
   static Future<ApiResult<List<CheckinJobType>>> jobTypes() async {

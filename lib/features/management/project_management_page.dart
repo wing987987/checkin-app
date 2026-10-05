@@ -11,6 +11,8 @@ import '../../models/my_schedule.dart';
 import '../../services/management_service.dart';
 import '../../core/widgets/dialog_scroll_view.dart';
 import 'anomaly_list_page.dart';
+import 'no_work_requests_page.dart';
+import 'supervisor_attendance_page.dart';
 import 'project_report_page.dart';
 import 'project_location_picker_page.dart';
 import 'clock_photo_archive_page.dart';
@@ -94,6 +96,28 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                               MaterialPageRoute(
                                   builder: (_) =>
                                       AnomalyListPage(project: project))))),
+                  Card(
+                      child: ListTile(
+                          leading: const Icon(Icons.badge_outlined),
+                          title: const Text('主管考勤分配'),
+                          subtitle: const Text('设置主管的考勤班组，不能设置自己的'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => SupervisorAttendancePage(
+                                      projectId: project.id))))),
+                  Card(
+                      child: ListTile(
+                          leading: const Icon(Icons.event_busy_outlined),
+                          title: const Text('未出工申请审批'),
+                          subtitle: const Text('批准为0工；拒绝保留已确认异常；撤销后可补卡'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => NoWorkRequestsPage(
+                                      projectId: project.id))))),
                   Card(
                       child: ListTile(
                           leading: const Icon(Icons.assessment),
@@ -330,10 +354,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
         builder: (ctx) => StatefulBuilder(
             builder: (_, setLocal) => AlertDialog(
                     title: const Text('新增班组'),
-                    content: DialogScrollView(child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                    content: DialogScrollView(
+                        child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                           _fieldLabel('班组名称'),
                           TextField(
                               controller: controller,
@@ -357,20 +382,22 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                           const SizedBox(height: 16),
                           _fieldLabel('可选附加班次'),
                           ...shifts.where((shift) => shift.id != shiftId).map(
-                            (shift) => CheckboxListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(shift.name),
-                              subtitle: const Text('不打卡不算缺勤，打卡后独立计算'),
-                              value: extraShiftIds.contains(shift.id),
-                              onChanged: (value) => setLocal(() => value == true
-                                  ? extraShiftIds.add(shift.id)
-                                  : extraShiftIds.remove(shift.id)),
-                            ),
-                          ),
+                                (shift) => CheckboxListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(shift.name),
+                                  subtitle: const Text('不打卡不算缺勤，打卡后独立计算'),
+                                  value: extraShiftIds.contains(shift.id),
+                                  onChanged: (value) => setLocal(() =>
+                                      value == true
+                                          ? extraShiftIds.add(shift.id)
+                                          : extraShiftIds.remove(shift.id)),
+                                ),
+                              ),
                           if (formError != null) ...[
                             const SizedBox(height: 12),
                             Text(formError!,
-                                style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                                style: TextStyle(
+                                    color: Theme.of(ctx).colorScheme.error)),
                           ],
                         ])),
                     actions: [
@@ -380,8 +407,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       FilledButton(
                           onPressed: () async {
                             if (controller.text.trim().isEmpty) return;
-                            final r = await ManagementService.createTeam(
-                                project.id, {
+                            final r =
+                                await ManagementService.createTeam(project.id, {
                               'name': controller.text.trim(),
                               'shiftId': shiftId,
                               'extraShiftIds': extraShiftIds.toList(),
@@ -941,10 +968,11 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       builder: (ctx) => StatefulBuilder(
           builder: (_, setLocal) => AlertDialog(
                 title: const Text('编辑班组'),
-                content: DialogScrollView(child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                content: DialogScrollView(
+                    child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                       _fieldLabel('班组名称'),
                       TextField(
                           controller: name,
@@ -968,20 +996,21 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                       const SizedBox(height: 16),
                       _fieldLabel('可选附加班次'),
                       ...shifts.where((shift) => shift.id != shiftId).map(
-                        (shift) => CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(shift.name),
-                          subtitle: const Text('未打卡不产生缺勤'),
-                          value: extraShiftIds.contains(shift.id),
-                          onChanged: (value) => setLocal(() => value == true
-                              ? extraShiftIds.add(shift.id)
-                              : extraShiftIds.remove(shift.id)),
-                        ),
-                      ),
+                            (shift) => CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(shift.name),
+                              subtitle: const Text('未打卡不产生缺勤'),
+                              value: extraShiftIds.contains(shift.id),
+                              onChanged: (value) => setLocal(() => value == true
+                                  ? extraShiftIds.add(shift.id)
+                                  : extraShiftIds.remove(shift.id)),
+                            ),
+                          ),
                       if (formError != null) ...[
                         const SizedBox(height: 12),
                         Text(formError!,
-                            style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                            style: TextStyle(
+                                color: Theme.of(ctx).colorScheme.error)),
                       ],
                     ])),
                 actions: [
@@ -991,8 +1020,8 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   FilledButton(
                     onPressed: () async {
                       if (name.text.trim().isEmpty) return;
-                      final result = await ManagementService.updateTeam(
-                          team.id, {
+                      final result =
+                          await ManagementService.updateTeam(team.id, {
                         'name': name.text.trim(),
                         'shiftId': shiftId,
                         'extraShiftIds': extraShiftIds.toList(),

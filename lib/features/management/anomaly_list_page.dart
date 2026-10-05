@@ -3,6 +3,10 @@ import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
 import '../../models/attendance_anomaly.dart';
 import '../../models/attendance_report.dart';
+import 'no_work_requests_page.dart';
+import 'project_report_page.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/checkin_project.dart';
 import '../../services/management_service.dart';
 import '../../core/models/api_result.dart';
@@ -171,6 +175,17 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         : <AttendanceAnomaly>[];
     return Scaffold(
       appBar: AppBar(title: const Text('异常考勤'), actions: [
+        IconButton(
+            tooltip: '未出工申请审批',
+            icon: const Icon(Icons.event_busy_outlined),
+            onPressed: () async {
+              await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          NoWorkRequestsPage(projectId: widget.project.id)));
+              if (mounted) await _load();
+            }),
         Row(children: [
           const Text('显示已处理'),
           Switch(
@@ -261,11 +276,14 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
       margin: const EdgeInsets.only(bottom: 10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: item.missing
-            ? () => _reviewMissing(item)
-            : item.resolved
-                ? () => _showHistory(item)
-                : () => _resolve(item),
+        onTap: item.workerId == context.read<AuthProvider>().currentUser?.id
+            ? () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('自己的考勤只能查看，请由同项目另一位主管处理')))
+            : item.missing
+                ? () => _reviewMissing(item)
+                : item.resolved
+                    ? () => _showHistory(item)
+                    : () => _resolve(item),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child:
@@ -477,6 +495,16 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
   }
 
   Future<void> _reviewMissing(AttendanceAnomaly item) async {
+    if (item.referenceRecordId == 0) {
+      await Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => ProjectReportPage(
+                  project: widget.project,
+                  initialDate: DateTime.tryParse(item.attendanceDate))));
+      if (mounted) await _load();
+      return;
+    }
     final dayResult =
         await ManagementService.anomalyDay(item.referenceRecordId);
     if (!mounted) return;

@@ -7,6 +7,7 @@ import '../../core/widgets/zoomable_network_image.dart';
 import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/worker_service.dart';
+import '../../core/widgets/no_work_application_dialog.dart';
 
 enum _ReportMode { day, month }
 
@@ -244,6 +245,8 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
     final abnormal = attendance != null &&
         attendance.status != 'normal' &&
         attendance.status != 'manual' &&
+        attendance.status != 'no_work_approved' &&
+        attendance.status != 'no_work_pending' &&
         attendance.status != 'in_progress';
     return InkWell(
       borderRadius: BorderRadius.circular(24),
@@ -288,8 +291,10 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
   }
 
   Widget _selectedDayCard() {
-    final day = _attendanceFor(selectedDate);
-    if (day == null) {
+    final days = (report?.days ?? <DailyAttendance>[])
+        .where((d) => d.date == DateFormat('yyyy-MM-dd').format(selectedDate))
+        .toList();
+    if (days.isEmpty) {
       return _surface(
           child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 40),
@@ -302,44 +307,104 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
         ]),
       ));
     }
-    return _surface(
+    return Column(
+        children: days
+            .map((day) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _dayCard(day)))
+            .toList());
+  }
+
+  Widget _dayCard(DailyAttendance day) => _surface(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+              child: Text(
+                  '上下班打卡（工时 ${_hours(day.workHours)}${day.overtimeHours > 0 ? ' · 加班 ${_hours(day.overtimeHours)}' : ''}）',
+                  style: const TextStyle(
+                      fontSize: 19, fontWeight: FontWeight.w700))),
+          _statusBadge(day),
+        ]),
+        const SizedBox(height: 6),
+        Text('${day.projectName} · ${day.teamName} · ${day.shiftName}',
+            style: const TextStyle(color: Color(0xFF62636A))),
+        if (day.statusMessage.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(day.statusMessage,
+              style: TextStyle(
+                  color: day.status == 'normal'
+                      ? const Color(0xFF62636A)
+                      : Colors.orange[800])),
+        ],
+        const Divider(height: 28),
+        if (day.clocks.isEmpty)
+          const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: Text('暂无打卡明细')))
+        else
+          ...List.generate(
+              day.clocks.length,
+              (index) => _timelineClock(day.clocks[index], index,
+                  day.clocks.length, day.status == 'in_progress')),
+        _noWorkAction(day),
+      ]));
+
+  Widget _noWorkAction(DailyAttendance day) {
+    if (!day.canApplyNoWork && day.noWorkStatus.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+        padding: const EdgeInsets.only(top: 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Expanded(
-            child: Text(
-                '上下班打卡（工时 ${_hours(day.workHours)}${day.overtimeHours > 0 ? ' · 加班 ${_hours(day.overtimeHours)}' : ''}）',
-                style: const TextStyle(
-                    fontSize: 19, fontWeight: FontWeight.w700))),
-        _statusBadge(day),
-      ]),
-      const SizedBox(height: 6),
-      Text('${day.projectName} · ${day.teamName} · ${day.shiftName}',
-          style: const TextStyle(color: Color(0xFF62636A))),
-      if (day.statusMessage.isNotEmpty) ...[
-        const SizedBox(height: 4),
-        Text(day.statusMessage,
-            style: TextStyle(
-                color: day.status == 'normal'
-                    ? const Color(0xFF62636A)
-                    : Colors.orange[800])),
-      ],
-      const Divider(height: 28),
-      if (day.clocks.isEmpty)
-        const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: Text('暂无打卡明细')))
-      else
-        ...List.generate(
-            day.clocks.length,
-            (index) => _timelineClock(day.clocks[index], index,
-                day.clocks.length, day.status == 'in_progress')),
-    ]));
+          if (day.noWorkStatus.isNotEmpty)
+            Text(
+                {
+                      'pending': '未出工申请待审批',
+                      'approved': '批准未出工 · 0工',
+                      'rejected': '申请已拒绝 · 缺卡已确认异常',
+                      'revoked': '申请已撤销'
+                    }[day.noWorkStatus] ??
+                    '',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          if (day.canApplyNoWork)
+            OutlinedButton.icon(
+                onPressed: () => _applyNoWork(day),
+                icon: const Icon(Icons.event_busy_outlined),
+                label: const Text('申请本班次未出工')),
+        ]));
+  }
+
+  Future<void> _applyNoWork(DailyAttendance day) async {
+    final reason = await showDialog<String>(
+        context: context,
+        builder: (ctx) =>
+            NoWorkApplicationDialog(date: day.date, shiftName: day.shiftName));
+    if (reason == null || !mounted) return;
+    try {
+      final r = await WorkerService.applyNoWork({
+        'projectId': day.projectId,
+        'shiftId': day.shiftId,
+        'attendanceDate': day.date,
+        'reason': reason.trim()
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(r.isSuccess ? '已提交，等待主管审批' : r.message)));
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('提交失败：$e')));
+      }
+    }
   }
 
   Widget _timelineClock(
       AttendanceClockDetail clock, int index, int count, bool inProgress) {
     final missing = clock.status == 'missing';
-    final warning = (missing && !inProgress) || (!missing && !clock.countable);
+    final warning = !clock.status.startsWith('no_work') &&
+        ((missing && !inProgress) || (!missing && !clock.countable));
     return IntrinsicHeight(
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       SizedBox(
@@ -463,26 +528,31 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
               subtitle:
                   Text('工时 ${_hours(day.workHours)} · 工数 ${day.workUnits}'),
               trailing: _statusBadge(day),
-              children: day.clocks
-                  .map((clock) =>
-                      _compactClock(clock, day.status == 'in_progress'))
-                  .toList(),
+              children: [
+                ...day.clocks.map((clock) =>
+                    _compactClock(clock, day.status == 'in_progress')),
+                _noWorkAction(day)
+              ],
             )),
       );
 
   Widget _compactClock(AttendanceClockDetail clock, bool inProgress) {
     final missing = clock.status == 'missing';
+    final noWork = clock.status.startsWith('no_work');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(children: [
         Icon(
-            missing
-                ? Icons.cancel_outlined
-                : clock.countable
-                    ? Icons.check_circle_outline
-                    : Icons.error_outline,
+            noWork
+                ? Icons.event_busy_outlined
+                : missing
+                    ? Icons.cancel_outlined
+                    : clock.countable
+                        ? Icons.check_circle_outline
+                        : Icons.error_outline,
             size: 20,
-            color: (missing && !inProgress) || (!missing && !clock.countable)
+            color: !noWork &&
+                    ((missing && !inProgress) || (!missing && !clock.countable))
                 ? Colors.orange
                 : _blue),
         const SizedBox(width: 10),
@@ -502,7 +572,15 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
               onPressed: () => _showClockPhoto(clock),
               icon: const Icon(Icons.photo_camera_outlined, color: _blue)),
         Text(
-            missing ? (inProgress ? '待打卡' : '缺卡') : _shortTime(clock.clockTime),
+            noWork
+                ? clock.anomalyMessage
+                : missing
+                    ? (inProgress
+                        ? '待打卡'
+                        : clock.acknowledgedMissing
+                            ? '已确认缺卡'
+                            : '缺卡')
+                    : _shortTime(clock.clockTime),
             style: const TextStyle(fontWeight: FontWeight.w600)),
       ]),
     );
@@ -556,18 +634,24 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
   Widget _statusBadge(DailyAttendance day) {
     final normal = day.status == 'normal';
     final inProgress = day.status == 'in_progress';
-    final text = normal
-        ? '正常'
-        : inProgress
-            ? '班次进行中'
-            : day.status == 'missing'
-                ? '缺卡'
-                : day.status == 'manual'
-                    ? '人工工时'
-                    : '异常';
-    final color = normal
+    final text = day.status.startsWith('no_work_')
+        ? {
+            'no_work_pending': '未出工待审批',
+            'no_work_approved': '批准未出工',
+            'no_work_rejected': '已确认异常'
+          }[day.status]!
+        : normal
+            ? '正常'
+            : inProgress
+                ? '班次进行中'
+                : day.status == 'missing'
+                    ? '缺卡'
+                    : day.status == 'manual'
+                        ? '人工工时'
+                        : '异常';
+    final color = normal || day.status == 'no_work_approved'
         ? const Color(0xFF00B42A)
-        : inProgress
+        : inProgress || day.status == 'no_work_pending'
             ? _blue
             : Colors.orange[800]!;
     return Container(
@@ -653,6 +737,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
   }
 
   String _clockDescription(AttendanceClockDetail clock, bool inProgress) {
+    if (clock.status.startsWith('no_work')) return clock.anomalyMessage;
     if (clock.checkpointName.startsWith('加班')) {
       if (!clock.countable) {
         return clock.anomalyMessage.isEmpty ? '加班打卡异常' : clock.anomalyMessage;

@@ -8,12 +8,15 @@ import '../../models/checkin_project.dart';
 import '../../core/widgets/zoomable_network_image.dart';
 import '../../services/management_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 
 enum _ProjectReportMode { day, month }
 
 class ProjectReportPage extends StatefulWidget {
   final CheckinProject project;
-  const ProjectReportPage({super.key, required this.project});
+  final DateTime? initialDate;
+  const ProjectReportPage({super.key, required this.project, this.initialDate});
   @override
   State<ProjectReportPage> createState() => _ProjectReportPageState();
 }
@@ -30,6 +33,11 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialDate != null) {
+      selectedDate = widget.initialDate!;
+      month = DateTime(selectedDate.year, selectedDate.month);
+      mode = _ProjectReportMode.day;
+    }
     _load();
   }
 
@@ -331,7 +339,11 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                         style: const TextStyle(color: AppColors.textSecondary)),
                   ),
                 ...day.clocks.map((clock) => _clockCard(day, clock)),
-                if (day.status != 'in_progress')
+                if (day.workerId !=
+                        context.read<AuthProvider>().currentUser?.id &&
+                    day.status != 'in_progress' &&
+                    !['pending', 'approved', 'rejected']
+                        .contains(day.noWorkStatus))
                   Align(
                       alignment: Alignment.centerRight,
                       child: TextButton.icon(
@@ -345,6 +357,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
   Widget _dayStatus(String status) {
     final label = switch (status) {
       'normal' => '正常',
+      'no_work_pending' => '未出工待审批',
+      'no_work_approved' => '批准未出工',
+      'no_work_rejected' => '已确认异常',
       'manual' => '主管确认',
       'pending_review' => '待确认工数',
       'in_progress' => '班次进行中',
@@ -353,6 +368,8 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
     };
     final color = switch (status) {
       'normal' => AppColors.success,
+      'no_work_approved' => AppColors.success,
+      'no_work_pending' => AppColors.primary,
       'manual' => AppColors.primary,
       'pending_review' => AppColors.warning,
       'in_progress' => AppColors.primary,
@@ -402,21 +419,24 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
 
   Widget _clockCard(DailyAttendance day, AttendanceClockDetail clock) {
     final missing = clock.status == 'missing';
-    final abnormal = !missing && !clock.countable;
+    final noWork = clock.status.startsWith('no_work');
+    final abnormal = !missing && !clock.countable && !noWork;
     final color = missing && day.status == 'in_progress'
         ? AppColors.primary
         : missing || abnormal
             ? AppColors.warning
             : AppColors.success;
-    final label = missing
-        ? day.status == 'in_progress'
-            ? '待打卡'
-            : clock.acknowledgedMissing
-                ? '已确认缺卡'
-                : '未打卡'
-        : abnormal
-            ? '异常'
-            : '有效';
+    final label = noWork
+        ? clock.anomalyMessage
+        : missing
+            ? day.status == 'in_progress'
+                ? '待打卡'
+                : clock.acknowledgedMissing
+                    ? '已确认缺卡'
+                    : '未打卡'
+            : abnormal
+                ? '异常'
+                : '有效';
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 9),
@@ -476,6 +496,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
           const SizedBox(height: 7),
           Wrap(spacing: 6, runSpacing: 4, children: [
             if (missing &&
+                day.workerId != context.read<AuthProvider>().currentUser?.id &&
+                !['pending', 'approved', 'rejected']
+                    .contains(day.noWorkStatus) &&
                 day.status != 'in_progress' &&
                 clock.checkpointId != null)
               TextButton.icon(
@@ -487,7 +510,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                   onPressed: () => _showClockPhoto(day, clock),
                   icon: const Icon(Icons.photo_camera_outlined, size: 18),
                   label: const Text('查看照片')),
-            if (clock.recordId != null && clock.anomalyMessage.isNotEmpty)
+            if (day.workerId != context.read<AuthProvider>().currentUser?.id &&
+                clock.recordId != null &&
+                clock.anomalyMessage.isNotEmpty)
               TextButton.icon(
                   onPressed: () => _resolveReportClock(day, clock),
                   icon: const Icon(Icons.fact_check_outlined, size: 18),
@@ -894,6 +919,8 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         .where((day) =>
             day.status != 'normal' &&
             day.status != 'manual' &&
+            day.status != 'no_work_approved' &&
+            day.status != 'no_work_pending' &&
             day.status != 'in_progress')
         .length;
     return ListView(

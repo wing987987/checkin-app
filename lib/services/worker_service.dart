@@ -6,6 +6,12 @@ import 'dart:typed_data';
 import '../models/attendance_report.dart';
 
 class WorkerService {
+  static Future<ApiResult<void>> applyNoWork(Map<String, dynamic> data) async {
+    final response =
+        await DioClient.instance.post('/api/ck/worker/no-work', data: data);
+    return ApiResult.fromJson(response.data, (_) {});
+  }
+
   static Future<ApiResult<MySchedule>> schedule() async {
     final response = await DioClient.instance.get('/api/ck/worker/schedule');
     return ApiResult.fromJson(response.data,
