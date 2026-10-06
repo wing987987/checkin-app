@@ -430,6 +430,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   Future<void> _addShift() async {
     final name = TextEditingController();
     var type = 'day';
+    var allowOutside = false;
     var start = const TimeOfDay(hour: 6, minute: 30);
     var breakStart = const TimeOfDay(hour: 11, minute: 30);
     var breakEnd = const TimeOfDay(hour: 13, minute: 0);
@@ -444,6 +445,13 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                          SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('允许规定时段外打卡'),
+                              subtitle: const Text('开启后，时段外打卡将记为异常，需主管处理'),
+                              value: allowOutside,
+                              onChanged: (v) =>
+                                  setLocal(() => allowOutside = v)),
                           _fieldLabel('班次名称'),
                           TextField(
                               controller: name,
@@ -529,6 +537,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                 'breakStartTime': _time(breakStart),
                               if (type == 'day')
                                 'breakEndTime': _time(breakEnd),
+                              'allowOutsideClockWindow': allowOutside ? 1 : 0,
                               'graceBeforeMinutes': 30,
                               'graceAfterMinutes': 30,
                               'status': 1
@@ -778,6 +787,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
   Future<void> _editShift(CheckinShift shift) async {
     final name = TextEditingController(text: shift.name);
     var type = shift.shiftType;
+    var allowOutside = shift.allowOutsideClockWindow;
     var start = _parseTime(shift.startTime);
     var end = _parseTime(shift.endTime);
     var breakStart = _parseTime(shift.breakStartTime ?? '11:30:00');
@@ -792,6 +802,12 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('允许规定时段外打卡'),
+                      subtitle: const Text('开启后，时段外打卡将记为异常，需主管处理'),
+                      value: allowOutside,
+                      onChanged: (v) => setLocal(() => allowOutside = v)),
                   _fieldLabel('班次名称'),
                   TextField(
                       controller: name,
@@ -872,6 +888,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   'crossDay': type == 'night' ? 1 : 0,
                   if (type == 'day') 'breakStartTime': _time(breakStart),
                   if (type == 'day') 'breakEndTime': _time(breakEnd),
+                  'allowOutsideClockWindow': allowOutside ? 1 : 0,
                   'graceBeforeMinutes': 30,
                   'graceAfterMinutes': 30,
                   'status': shift.status,
@@ -949,6 +966,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
           shift.shiftType == 'day' ? 5 : shift.graceBeforeMinutes,
       'graceAfterMinutes':
           shift.shiftType == 'day' ? 5 : shift.graceAfterMinutes,
+      'allowOutsideClockWindow': shift.allowOutsideClockWindow ? 1 : 0,
       'status': next,
     });
     if (result.isSuccess) {

@@ -11,8 +11,10 @@ class CheckinShift {
   final int graceBeforeMinutes;
   final int graceAfterMinutes;
   final int status;
+  final bool allowOutsideClockWindow;
   const CheckinShift(
-      {required this.id,
+      {this.allowOutsideClockWindow = false,
+      required this.id,
       required this.projectId,
       required this.name,
       required this.shiftType,
@@ -26,6 +28,8 @@ class CheckinShift {
       required this.status});
   factory CheckinShift.fromJson(Map<String, dynamic> json) => CheckinShift(
         id: json['id'] as int,
+        allowOutsideClockWindow: json['allowOutsideClockWindow'] == true ||
+            json['allowOutsideClockWindow'] == 1,
         projectId: json['projectId'] as int,
         name: json['name'] as String? ?? '',
         shiftType: json['shiftType'] as String? ?? 'day',

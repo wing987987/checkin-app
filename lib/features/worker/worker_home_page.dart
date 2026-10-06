@@ -200,7 +200,7 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                             : AppColors.warning),
                 title: Text(point.name),
                 subtitle: Text(
-                    '标准时间 ${point.expectedTime}${point.dayOffset == 1 ? '（次日）' : ''}'),
+                    '标准时间 ${point.expectedTime}${point.dayOffset == 1 ? '（次日）' : ''}\n允许打卡 ${DateFormat('MM-dd HH:mm').format(value.windowStart(point))}–${DateFormat('MM-dd HH:mm').format(value.windowEnd(point))}'),
                 trailing: Text(record == null
                     ? '未打卡'
                     : record.anomalyType == null
@@ -433,6 +433,11 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
 
   Future<void> _clock({bool overtime = false, MySchedule? target}) async {
     final value = target ?? schedule!;
+    if (!overtime && !value.canClockAt(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('当前不在允许打卡时段内，请按班次显示的时间打卡。如已漏卡，请联系主管处理。')));
+      return;
+    }
     final user = context.read<AuthProvider>().currentUser;
     XFile? sourcePhoto;
     try {

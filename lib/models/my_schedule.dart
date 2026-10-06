@@ -62,6 +62,7 @@ class MySchedule {
   final double gpsLng;
   final String teamName;
   final int shiftId;
+  final bool allowOutsideClockWindow;
   final String shiftName;
   final String shiftType;
   final String startTime;
@@ -73,7 +74,8 @@ class MySchedule {
   final bool extraShift;
   final List<MySchedule> extraSchedules;
   const MySchedule(
-      {required this.projectId,
+      {this.allowOutsideClockWindow = false,
+      required this.projectId,
       required this.projectName,
       required this.fenceRadius,
       required this.gpsLat,
@@ -90,6 +92,33 @@ class MySchedule {
       required this.records,
       required this.extraShift,
       required this.extraSchedules});
+  DateTime expectedAt(ScheduleCheckpoint point) {
+    final date = DateTime.parse(attendanceDate);
+    final parts = point.expectedTime.split(':').map(int.parse).toList();
+    return DateTime(date.year, date.month, date.day + point.dayOffset, parts[0],
+        parts[1], parts.length > 2 ? parts[2] : 0);
+  }
+
+  bool isClockIn(ScheduleCheckpoint point) => const [
+        'start',
+        'morning_in',
+        'break_end',
+        'afternoon_in'
+      ].contains(point.code);
+
+  DateTime windowStart(ScheduleCheckpoint point) =>
+      expectedAt(point).subtract(Duration(minutes: isClockIn(point) ? 30 : 5));
+  DateTime windowEnd(ScheduleCheckpoint point) =>
+      expectedAt(point).add(Duration(minutes: isClockIn(point) ? 5 : 30));
+
+  bool canClockAt(DateTime now) =>
+      allowOutsideClockWindow ||
+      checkpoints.any((point) =>
+          !records.any((r) =>
+              r.checkpointId == point.id || r.checkpointCode == point.code) &&
+          !now.isBefore(windowStart(point)) &&
+          !now.isAfter(windowEnd(point)));
+
   factory MySchedule.fromJson(Map<String, dynamic> json) => MySchedule(
       projectId: json['projectId'] as int,
       projectName: json['projectName'] as String? ?? '',
@@ -98,6 +127,8 @@ class MySchedule {
       gpsLng: (json['gpsLng'] as num).toDouble(),
       teamName: json['teamName'] as String? ?? '',
       shiftId: json['shiftId'] as int,
+      allowOutsideClockWindow: json['allowOutsideClockWindow'] == true ||
+          json['allowOutsideClockWindow'] == 1,
       shiftName: json['shiftName'] as String? ?? '',
       shiftType: json['shiftType'] as String? ?? '',
       startTime: json['startTime'] as String? ?? '',
