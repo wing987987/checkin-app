@@ -16,7 +16,8 @@ import '../../core/theme/app_theme.dart';
 
 class AnomalyListPage extends StatefulWidget {
   final CheckinProject project;
-  const AnomalyListPage({super.key, required this.project});
+  final String? date;
+  const AnomalyListPage({super.key, required this.project, this.date});
   @override
   State<AnomalyListPage> createState() => _AnomalyListPageState();
 }
@@ -121,6 +122,9 @@ class _ManualHoursDialogState extends State<ManualHoursDialog> {
                 maxLines: 3,
                 decoration: const InputDecoration(labelText: '确认原因（必填）'),
               ),
+              const SizedBox(height: 10),
+              const Text('每个班次只能人工确认一次，保存后不能再次修改。',
+                  style: TextStyle(color: Colors.orange)),
               if (_error != null) ...[
                 const SizedBox(height: 10),
                 Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -154,7 +158,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
   Future<void> _load() async {
     setState(() => loading = true);
     try {
-      final r = await ManagementService.anomalies(widget.project.id);
+      final r = await ManagementService.anomalies(widget.project.id, date: widget.date);
       if (mounted) setState(() => items = r.data ?? const []);
     } finally {
       if (mounted) setState(() => loading = false);
@@ -174,7 +178,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         ? items.where((e) => e.resolved).toList()
         : <AttendanceAnomaly>[];
     return Scaffold(
-      appBar: AppBar(title: const Text('异常考勤'), actions: [
+      appBar: AppBar(title: Text(widget.date == null ? '异常考勤' : '${widget.date} 异常考勤'), actions: [
         IconButton(
             tooltip: '未出工申请审批',
             icon: const Icon(Icons.event_busy_outlined),
@@ -183,7 +187,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                   context,
                   MaterialPageRoute(
                       builder: (_) =>
-                          NoWorkRequestsPage(projectId: widget.project.id)));
+                          NoWorkRequestsPage(projectId: widget.project.id, date: widget.date)));
               if (mounted) await _load();
             }),
         Row(children: [
@@ -264,9 +268,10 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
 
   Widget _card(AttendanceAnomaly item, Color color) {
     final isExtra = item.anomalyType == 'extra_shift_pending';
+    final needsManual = isExtra || item.anomalyType == 'manual_hours_pending';
     final action = item.resolved
         ? '查看处理历史'
-        : isExtra
+        : needsManual
             ? '确认工时 / 工数'
             : item.missing
                 ? '查看并补卡'
@@ -515,14 +520,27 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
               dayResult.message.isEmpty ? '当天打卡明细加载失败' : dayResult.message)));
       return;
     }
+    final currentDays = days
+        .where((day) =>
+            day.workerId == item.workerId &&
+            day.shiftId == item.shiftId &&
+            day.date == item.attendanceDate)
+        .toList();
+    final alreadyManual = currentDays.any((day) => day.status == 'manual');
+    final alreadyAcknowledged = currentDays.any((day) => day.clocks.any(
+        (clock) =>
+            clock.checkpointId == item.checkpointId &&
+            clock.acknowledgedMissing));
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.event_busy_outlined,
             color: Colors.orange, size: 42),
-        title: Text(item.anomalyType == 'extra_shift_pending'
-            ? '${item.workerName} · 附加班次待确认'
-            : '${item.workerName} · ${item.checkpointName}缺卡'),
+        title: Text(item.anomalyType == 'manual_hours_pending'
+            ? '${item.workerName} · 上下班不成对待确认'
+            : item.anomalyType == 'extra_shift_pending'
+                ? '${item.workerName} · 附加班次待确认'
+                : '${item.workerName} · ${item.checkpointName}缺卡'),
         content: SizedBox(
           width: double.maxFinite,
           child: DialogScrollView(
@@ -543,10 +561,13 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx), child: const Text('暂不处理')),
-          OutlinedButton(
-              onPressed: () => Navigator.pop(ctx, 'manual'),
-              child: const Text('确认工时/工数')),
-          if (item.checkpointId != null)
+          if (!alreadyManual)
+            OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'manual'),
+                child: const Text('确认工时/工数')),
+          if (item.checkpointId != null &&
+              !alreadyAcknowledged &&
+              !alreadyManual)
             TextButton(
                 style: TextButton.styleFrom(foregroundColor: AppColors.warning),
                 onPressed: () => Navigator.pop(ctx, 'acknowledge'),
@@ -570,7 +591,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
     if (!await _confirmRetain(
       item,
       title: '确认保留缺卡？',
-      detail: '这个节点仍保持缺卡，不计入工时和工数，并从待处理列表移除。之后仍可在考勤报表补卡。',
+      detail: '此节点只允许确认一次，之后仍可在考勤报表补卡。若另半天上下班完整、所有异常已处理，系统会自动计0.5工。',
     )) {
       return;
     }

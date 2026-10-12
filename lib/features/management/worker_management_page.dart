@@ -11,6 +11,7 @@ import '../../services/management_service.dart';
 import '../../core/widgets/dialog_scroll_view.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/theme/app_theme.dart';
 
 class WorkerManagementPage extends StatefulWidget {
   final CheckinProject project;
@@ -80,32 +81,211 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
       );
 
   Widget _workerCard(WorkerAssignment worker) => Card(
-          child: ListTile(
-        leading: CircleAvatar(
-            child: Text(worker.realName.isEmpty
-                ? '?'
-                : worker.realName.substring(0, 1))),
-        title: Text(
-            '${worker.realName.isEmpty ? worker.username : worker.realName}${worker.role == 'supervisor' ? '（主管）' : ''}'),
-        subtitle: Text(
-            '用户名：${worker.username} · 工种：${worker.jobType?.isNotEmpty == true ? worker.jobType : '未设置'}\n${worker.teamName.isEmpty ? '未分配班组' : worker.teamName} · ${worker.shiftName.isEmpty ? '未设置班次' : worker.shiftName}${worker.personalShiftOverride ? '（个人班次）' : '（班组班次）'}'),
-        isThreeLine: true,
-        trailing:
-            worker.workerId == context.watch<AuthProvider>().currentUser?.id
-                ? const Text('本人 · 只读')
-                : PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'edit') _edit(worker);
-                      if (value == 'transfer') _transfer(worker);
-                      if (value == 'reset') _reset(worker);
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('编辑用户')),
-                      PopupMenuItem(value: 'transfer', child: Text('项目转移')),
-                      PopupMenuItem(value: 'reset', child: Text('重置密码')),
-                    ],
-                  ),
-      ));
+          child: Column(children: [
+        ListTile(
+          leading: CircleAvatar(
+              child: Text(worker.realName.isEmpty
+                  ? '?'
+                  : worker.realName.substring(0, 1))),
+          title: Text(
+              '${worker.realName.isEmpty ? worker.username : worker.realName}${worker.role == 'supervisor' ? '（主管）' : ''}'),
+          subtitle: Text(
+              '用户名：${worker.username} · 工种：${worker.jobType?.isNotEmpty == true ? worker.jobType : '未设置'}\n${worker.teamName.isEmpty ? '未分配班组' : worker.teamName} · ${worker.shiftName.isEmpty ? '未设置班次' : worker.shiftName}${worker.personalShiftOverride ? '（个人班次）' : '（班组班次）'}'),
+          isThreeLine: true,
+          trailing:
+              worker.workerId == context.watch<AuthProvider>().currentUser?.id
+                  ? const Text('本人 · 只读')
+                  : PopupMenuButton<String>(
+                      onSelected: (value) {
+                        if (value == 'edit') _edit(worker);
+                        if (value == 'transfer') _transfer(worker);
+                        if (value == 'reset') _reset(worker);
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'edit', child: Text('编辑用户')),
+                        PopupMenuItem(value: 'transfer', child: Text('项目转移')),
+                        PopupMenuItem(value: 'reset', child: Text('重置密码')),
+                      ],
+                    ),
+        ),
+        SwitchListTile(
+          title: const Text('允许打卡'),
+          subtitle: Text(worker.pauseStatus == 'pause_scheduled'
+              ? '已安排次日起暂停'
+              : worker.pauseStatus == 'resume_scheduled'
+                  ? '已暂停，安排次日起恢复'
+                  : worker.clockPaused
+                      ? '已暂停 · 可登录，不能打卡'
+                      : '正常打卡'),
+          value: !worker.clockPaused && worker.pauseStatus != 'pause_scheduled',
+          onChanged:
+              worker.workerId == context.watch<AuthProvider>().currentUser?.id
+                  ? null
+                  : (_) => _changePause(worker),
+        ),
+        Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+                onPressed: () => _pauseHistory(worker),
+                child: const Text('暂停 / 恢复记录')))
+      ]));
+
+  Future<void> _changePause(WorkerAssignment worker) async {
+    final resume =
+        worker.clockPaused || worker.pauseStatus == 'pause_scheduled';
+    final reason = TextEditingController();
+    var effective = 'now';
+    var saving = false;
+    String? failure;
+    final saved = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => StatefulBuilder(
+            builder: (_, update) => AlertDialog(
+                  title: Text(resume ? '恢复打卡' : '暂停打卡'),
+                  content: DialogScrollView(
+                      child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(worker.realName,
+                            style: const TextStyle(
+                                fontSize: 14, color: AppColors.textSecondary)),
+                        const SizedBox(height: 20),
+                        const Text('生效时间',
+                            style: TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        SegmentedButton<String>(
+                            expandedInsets: EdgeInsets.zero,
+                            segments: [
+                              ButtonSegment(
+                                  value: 'now',
+                                  label: Text(resume ? '当天恢复' : '立即暂停')),
+                              ButtonSegment(
+                                  value: 'tomorrow',
+                                  label: Text(resume ? '次日起恢复' : '次日起暂停'))
+                            ],
+                            selected: {effective},
+                            onSelectionChanged: saving
+                                ? null
+                                : (v) => update(() => effective = v.first)),
+                        const SizedBox(height: 16),
+                        Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                                color: AppColors.surfaceSubtle,
+                                borderRadius: BorderRadius.circular(8)),
+                            child: Text(
+                                resume
+                                    ? '暂停期间不追补缺卡。待生效的暂停可通过当天恢复取消。主管补卡仍需填写原因并留痕。'
+                                    : '暂停后仍可登录，不能普通或加班打卡。\n历史异常继续处理；当天已有打卡时，剩余缺卡提醒保留。后续暂停日免缺卡。',
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    height: 1.6,
+                                    color: AppColors.textSecondary))),
+                        const SizedBox(height: 16),
+                        TextField(
+                            controller: reason,
+                            enabled: !saving,
+                            maxLength: 500,
+                            minLines: 2,
+                            maxLines: 4,
+                            decoration:
+                                const InputDecoration(labelText: '原因（必填）')),
+                        if (failure != null)
+                          Text(failure!,
+                              style: const TextStyle(color: AppColors.danger)),
+                      ])),
+                  actions: [
+                    TextButton(
+                        onPressed:
+                            saving ? null : () => Navigator.pop(ctx, false),
+                        child: const Text('取消')),
+                    FilledButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                if (reason.text.trim().isEmpty) {
+                                  update(() => failure = '请填写原因');
+                                  return;
+                                }
+                                update(() {
+                                  saving = true;
+                                  failure = null;
+                                });
+                                try {
+                                  final result = await ManagementService
+                                      .changeAttendancePause(
+                                          worker.workerId,
+                                          widget.project.id,
+                                          resume ? 'resume' : 'pause',
+                                          effective,
+                                          reason.text.trim());
+                                  if (!ctx.mounted) return;
+                                  if (result.isSuccess) {
+                                    Navigator.pop(ctx, true);
+                                  } else {
+                                    update(() {
+                                      saving = false;
+                                      failure = result.message;
+                                    });
+                                  }
+                                } catch (_) {
+                                  update(() {
+                                    saving = false;
+                                    failure = '操作失败，请检查网络后重试';
+                                  });
+                                }
+                              },
+                        child: Text(saving ? '保存中…' : '确定'))
+                  ],
+                )));
+    // The dialog's closing animation may still reference its controller.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    reason.dispose();
+    if (saved == true && mounted) await _load();
+  }
+
+  Future<void> _pauseHistory(WorkerAssignment worker) async {
+    try {
+      final result = await ManagementService.attendancePauseHistory(
+          worker.workerId, widget.project.id);
+      if (!mounted) return;
+      if (!result.isSuccess) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(result.message)));
+        return;
+      }
+      await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+                  title: Text('${worker.realName} · 操作记录'),
+                  content: SizedBox(
+                      width: 420,
+                      child: DialogScrollView(
+                          child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        if (result.data?.isEmpty != false) const Text('暂无记录'),
+                        for (final row
+                            in result.data ?? <Map<String, dynamic>>[])
+                          ListTile(
+                              title: Text(
+                                  '${row['action'] == 'pause' ? '暂停' : row['action'] == 'cancel_pause' ? '取消暂停安排' : '恢复'} · ${row['actorName'] ?? ''}'),
+                              subtitle: Text(
+                                  '生效：${row['effectiveAt']}\n原因：${row['reason']}\n操作时间：${row['createTime']}')),
+                      ]))),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('关闭'))
+                  ]));
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('无法加载操作记录')));
+    }
+  }
 
   Future<void> _edit([WorkerAssignment? worker]) async {
     final creating = worker == null;

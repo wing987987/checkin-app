@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/my_schedule.dart';
@@ -29,7 +30,33 @@ class WorkerHomePage extends StatefulWidget {
   State<WorkerHomePage> createState() => _WorkerHomePageState();
 }
 
-class _WorkerHomePageState extends State<WorkerHomePage> {
+class _WorkerHomePageState extends State<WorkerHomePage>
+    with WidgetsBindingObserver {
+  Timer? _pauseRefresh;
+  @override
+  void dispose() {
+    _pauseRefresh?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshPause();
+  }
+
+  Future<void> _refreshPause() async {
+    if (clocking || loading || !mounted) return;
+    try {
+      final r = await WorkerService.schedule();
+      if (mounted && r.isSuccess && r.data != null) {
+        setState(() => schedule = r.data);
+      }
+    } catch (_) {
+      /* Existing data remains available; server still checks every clock. */
+    }
+  }
+
   MySchedule? schedule;
   String? error;
   bool loading = true;
@@ -42,6 +69,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _pauseRefresh =
+        Timer.periodic(const Duration(seconds: 30), (_) => _refreshPause());
     _load();
   }
 
@@ -128,6 +158,15 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
                             '考勤日期 ${value.attendanceDate} · 围栏 ${value.fenceRadius} 米'),
                       ]))),
           const SizedBox(height: 16),
+          if (value.pauseStatus != 'active')
+            Card(
+                child: ListTile(
+                    leading: const Icon(Icons.pause_circle_outline),
+                    title: Text(
+                        value.isPausedAt(DateTime.now()) ? '打卡已暂停' : '打卡时间安排'),
+                    subtitle: Text(value.isPausedAt(DateTime.now())
+                        ? '可正常登录，暂不能普通或加班打卡。${value.resumeAt == null ? '请联系主管恢复。' : '恢复时间：${value.resumeAt}'}'
+                        : '暂停时间：${value.pauseStartAt}'))),
           _locationCard(value),
           const SizedBox(height: 16),
           Text('打卡进度', style: Theme.of(context).textTheme.titleMedium),
@@ -142,7 +181,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
           ],
           const SizedBox(height: 20),
           FilledButton.icon(
-              onPressed: clocking ? null : _selectAndClock,
+              onPressed: clocking || value.isPausedAt(DateTime.now())
+                  ? null
+                  : _selectAndClock,
               icon: clocking
                   ? const SizedBox(
                       width: 18,
@@ -154,7 +195,9 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
               value.overtimeAvailable) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed: clocking ? null : () => _clock(overtime: true),
+              onPressed: clocking || value.isPausedAt(DateTime.now())
+                  ? null
+                  : () => _clock(overtime: true),
               icon: const Icon(Icons.more_time),
               label: Text(_overtimeButtonText(value)),
             ),
@@ -432,6 +475,13 @@ class _WorkerHomePageState extends State<WorkerHomePage> {
       .length;
 
   Future<void> _clock({bool overtime = false, MySchedule? target}) async {
+    await _refreshPause();
+    if (!mounted) return;
+    if (schedule?.isPausedAt(DateTime.now()) == true) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('打卡已暂停，请联系主管恢复')));
+      return;
+    }
     final value = target ?? schedule!;
     if (!overtime && !value.canClockAt(DateTime.now())) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

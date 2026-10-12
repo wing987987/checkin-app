@@ -55,6 +55,17 @@ class ClockStatus {
 }
 
 class MySchedule {
+  final bool clockPaused;
+  final String pauseStatus;
+  final String? pauseStartAt, resumeAt;
+  bool isPausedAt(DateTime now) {
+    final start = DateTime.tryParse(pauseStartAt ?? '');
+    final end = DateTime.tryParse(resumeAt ?? '');
+    return start == null
+        ? clockPaused
+        : !now.isBefore(start) && (end == null || now.isBefore(end));
+  }
+
   final int projectId;
   final String projectName;
   final int fenceRadius;
@@ -75,6 +86,10 @@ class MySchedule {
   final List<MySchedule> extraSchedules;
   const MySchedule(
       {this.allowOutsideClockWindow = false,
+      this.clockPaused = false,
+      this.pauseStatus = 'active',
+      this.pauseStartAt,
+      this.resumeAt,
       required this.projectId,
       required this.projectName,
       required this.fenceRadius,
@@ -112,14 +127,20 @@ class MySchedule {
       expectedAt(point).add(Duration(minutes: isClockIn(point) ? 5 : 30));
 
   bool canClockAt(DateTime now) =>
-      allowOutsideClockWindow ||
-      checkpoints.any((point) =>
-          !records.any((r) =>
-              r.checkpointId == point.id || r.checkpointCode == point.code) &&
-          !now.isBefore(windowStart(point)) &&
-          !now.isAfter(windowEnd(point)));
+      !isPausedAt(now) &&
+      (allowOutsideClockWindow ||
+          checkpoints.any((point) =>
+              !records.any((r) =>
+                  r.checkpointId == point.id ||
+                  r.checkpointCode == point.code) &&
+              !now.isBefore(windowStart(point)) &&
+              !now.isAfter(windowEnd(point))));
 
   factory MySchedule.fromJson(Map<String, dynamic> json) => MySchedule(
+      clockPaused: json['clockPaused'] == true,
+      pauseStatus: json['pauseStatus'] as String? ?? 'active',
+      pauseStartAt: json['pauseStartAt'] as String?,
+      resumeAt: json['resumeAt'] as String?,
       projectId: json['projectId'] as int,
       projectName: json['projectName'] as String? ?? '',
       fenceRadius: json['fenceRadius'] as int? ?? 100,

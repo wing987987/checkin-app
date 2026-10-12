@@ -245,6 +245,7 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
     final abnormal = attendance != null &&
         attendance.status != 'normal' &&
         attendance.status != 'manual' &&
+        attendance.status != 'paused' &&
         attendance.status != 'no_work_approved' &&
         attendance.status != 'no_work_pending' &&
         attendance.status != 'in_progress';
@@ -403,7 +404,8 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
   Widget _timelineClock(
       AttendanceClockDetail clock, int index, int count, bool inProgress) {
     final missing = clock.status == 'missing';
-    final warning = !clock.status.startsWith('no_work') &&
+    final warning = clock.status != 'paused' &&
+        !clock.status.startsWith('no_work') &&
         ((missing && !inProgress) || (!missing && !clock.countable));
     return IntrinsicHeight(
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -537,6 +539,12 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
       );
 
   Widget _compactClock(AttendanceClockDetail clock, bool inProgress) {
+    if (clock.status == 'paused') {
+      return ListTile(
+          leading: const Icon(Icons.pause_circle_outline, color: Colors.grey),
+          title: Text(clock.checkpointName),
+          trailing: const Text('暂停免卡'));
+    }
     final missing = clock.status == 'missing';
     final noWork = clock.status.startsWith('no_work');
     return Padding(
@@ -634,26 +642,30 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
   Widget _statusBadge(DailyAttendance day) {
     final normal = day.status == 'normal';
     final inProgress = day.status == 'in_progress';
-    final text = day.status.startsWith('no_work_')
-        ? {
-            'no_work_pending': '未出工待审批',
-            'no_work_approved': '批准未出工',
-            'no_work_rejected': '已确认异常'
-          }[day.status]!
-        : normal
-            ? '正常'
-            : inProgress
-                ? '班次进行中'
-                : day.status == 'missing'
-                    ? '缺卡'
-                    : day.status == 'manual'
-                        ? '人工工时'
-                        : '异常';
-    final color = normal || day.status == 'no_work_approved'
-        ? const Color(0xFF00B42A)
-        : inProgress || day.status == 'no_work_pending'
-            ? _blue
-            : Colors.orange[800]!;
+    final text = day.status == 'paused'
+        ? '暂停免卡'
+        : day.status.startsWith('no_work_')
+            ? {
+                'no_work_pending': '未出工待审批',
+                'no_work_approved': '批准未出工',
+                'no_work_rejected': '已确认异常'
+              }[day.status]!
+            : normal
+                ? '正常'
+                : inProgress
+                    ? '班次进行中'
+                    : day.status == 'missing'
+                        ? '缺卡'
+                        : day.status == 'manual'
+                            ? '人工工时'
+                            : '异常';
+    final color = day.status == 'paused'
+        ? Colors.grey
+        : normal || day.status == 'no_work_approved'
+            ? const Color(0xFF00B42A)
+            : inProgress || day.status == 'no_work_pending'
+                ? _blue
+                : Colors.orange[800]!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -737,6 +749,9 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
   }
 
   String _clockDescription(AttendanceClockDetail clock, bool inProgress) {
+    if (clock.status == 'paused') {
+      return '暂停期间免缺卡，无需处理';
+    }
     if (clock.status.startsWith('no_work')) return clock.anomalyMessage;
     if (clock.checkpointName.startsWith('加班')) {
       if (!clock.countable) {

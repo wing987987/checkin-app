@@ -116,6 +116,27 @@ abstract final class AppTheme {
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+          textStyle: const WidgetStatePropertyAll(
+              TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          foregroundColor: WidgetStateProperty.resolveWith(
+              (states) => states.contains(WidgetState.disabled)
+                  ? AppColors.textTertiary
+                  : states.contains(WidgetState.selected)
+                      ? AppColors.primary
+                      : AppColors.textSecondary),
+          backgroundColor: WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.selected)
+                  ? AppColors.soft
+                  : AppColors.surface),
+          side: const WidgetStatePropertyAll(
+              BorderSide(color: AppColors.borderStrong)),
+          shape: const WidgetStatePropertyAll(
+              RoundedRectangleBorder(borderRadius: radius)),
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(0, 48),

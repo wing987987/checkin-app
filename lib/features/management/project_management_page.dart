@@ -17,6 +17,13 @@ import 'project_report_page.dart';
 import 'project_location_picker_page.dart';
 import 'clock_photo_archive_page.dart';
 import 'worker_management_page.dart';
+import 'construction_log_page.dart';
+import 'construction_log_history_page.dart';
+import '../../services/construction_log_service.dart';
+import '../../services/log_reminder_service.dart';
+import '../../models/attendance_anomaly.dart';
+import '../../providers/auth_provider.dart';
+import 'package:provider/provider.dart';
 
 class ProjectManagementPage extends StatefulWidget {
   final CheckinProject project;
@@ -38,6 +45,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     super.initState();
     project = widget.project;
     _load();
+    _loadWorkbench();
   }
 
   Future<void> _load() async {
@@ -63,152 +71,388 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(project.name), actions: [
-          IconButton(
-              tooltip: '编辑项目',
-              onPressed: _editProject,
-              icon: const Icon(Icons.edit_outlined))
-        ]),
-        body: loading
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(padding: const EdgeInsets.all(16), children: [
-                  Card(
-                      child: ListTile(
-                          leading: const Icon(Icons.gps_fixed),
-                          title: const Text('项目定位'),
-                          subtitle: Text(
-                              '${project.gpsLat}, ${project.gpsLng}\n打卡范围 ${project.fenceRadius} 米 · ${project.status == 'active' ? '使用中' : '已停用'}'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: _editProjectLocation)),
-                  Card(
-                      child: ListTile(
-                          leading: const Icon(Icons.warning_amber,
-                              color: Colors.orange),
-                          title: const Text('异常考勤处理'),
-                          subtitle: const Text('围栏外、迟到、早退、缺卡'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      AnomalyListPage(project: project))))),
-                  Card(
-                      child: ListTile(
-                          leading: const Icon(Icons.badge_outlined),
-                          title: const Text('主管考勤分配'),
-                          subtitle: const Text('设置主管的考勤班组，不能设置自己的'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => SupervisorAttendancePage(
-                                      projectId: project.id))))),
-                  Card(
-                      child: ListTile(
-                          leading: const Icon(Icons.event_busy_outlined),
-                          title: const Text('未出工申请审批'),
-                          subtitle: const Text('批准为0工；拒绝保留已确认异常；撤销后可补卡'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => NoWorkRequestsPage(
-                                      projectId: project.id))))),
-                  Card(
-                      child: ListTile(
-                          leading: const Icon(Icons.assessment),
-                          title: const Text('考勤报表'),
-                          subtitle: const Text('项目月工时 → 工种 → 工人；可切换日报'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      ProjectReportPage(project: project))))),
-                  Card(
-                      child: ListTile(
-                          leading: const Icon(Icons.photo_library_outlined),
-                          title: const Text('打卡照片归档'),
-                          subtitle: const Text('按日期查看项目工人的打卡照片'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => ClockPhotoArchivePage(
-                                      project: project))))),
-                  Card(
-                      child: ListTile(
-                          leading: const Icon(Icons.manage_accounts_outlined),
-                          title: const Text('用户管理'),
-                          subtitle: const Text('新增、工种、分组、个人班次和项目转移'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () async {
-                            await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => WorkerManagementPage(
-                                        project: project)));
-                            if (mounted) _load();
-                          })),
-                  Card(
-                      child: ListTile(
-                          leading: const Icon(Icons.add_task),
-                          title: const Text('主管补卡'),
-                          subtitle: const Text('补齐缺失检查点，原因必填并永久留痕'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: workers.isEmpty ? null : _supplementClock)),
-                  _header('班组', teams.length, shifts.isEmpty ? null : _addTeam),
-                  if (teams.isEmpty) const ListTile(title: Text('暂未设置班组')),
-                  ...teams.map((t) => ListTile(
-                      leading: Icon(Icons.groups,
-                          color: t.status == 1 ? null : Colors.grey),
-                      title: Text(t.name),
-                      subtitle: Text(
-                          '默认班次：${_shiftName(t.shiftId)}${t.status == 1 ? '' : ' · 已停用'}'),
-                      onTap: () => _manageTeamMembers(t),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'edit') _editTeam(t);
-                          if (value == 'members') _manageTeamMembers(t);
-                          if (value == 'delete') _deleteTeam(t);
-                          if (value == 'toggle') _toggleTeam(t);
-                        },
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(value: 'edit', child: Text('编辑')),
-                          const PopupMenuItem(
-                              value: 'members', child: Text('管理成员')),
-                          PopupMenuItem(
-                              value: 'toggle',
-                              child: Text(t.status == 1 ? '停用' : '启用')),
-                          const PopupMenuItem(
-                              value: 'delete', child: Text('删除班组')),
-                        ],
-                      ))),
-                  _header('班次', shifts.length, _addShift),
-                  if (shifts.isEmpty) const ListTile(title: Text('暂未设置班次')),
-                  ...shifts.map((s) => ListTile(
-                      leading: Icon(Icons.schedule,
-                          color: s.status == 1 ? null : Colors.grey),
-                      title: Text(s.name),
-                      subtitle: Text(
-                          '${_typeName(s.shiftType)}  ${s.startTime}–${s.shiftType == 'night' ? '次日 ' : ''}${s.endTime}${s.status == 1 ? '' : ' · 已停用'}'),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) =>
-                            value == 'edit' ? _editShift(s) : _toggleShift(s),
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(value: 'edit', child: Text('编辑')),
-                          PopupMenuItem(
-                              value: 'toggle',
-                              child: Text(s.status == 1 ? '停用' : '启用')),
-                        ],
-                      ))),
-                ]),
-              ),
+  int _tab = 0;
+  Map<String, dynamic>? _todayLog;
+  int? _anomalyCount, _requestCount;
+  String? _workbenchError;
+
+  Future<void> _loadWorkbench() async {
+    try {
+      final values = await Future.wait([
+        ConstructionLogService.mine(project.id),
+        ManagementService.anomalies(project.id),
+        ManagementService.noWorkRequests(project.id),
+      ]);
+      if (!mounted) return;
+      if (values.any((v) => !v.isSuccess)) throw Exception('加载失败');
+      setState(() {
+        _todayLog = values[0].data as Map<String, dynamic>?;
+        _anomalyCount = (values[1].data as List)
+            .where((v) => !(v as AttendanceAnomaly).resolved)
+            .length;
+        _requestCount = (values[2].data as List)
+            .where((v) => v['status'] == 'pending')
+            .length;
+        _workbenchError = null;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _workbenchError = '待办加载失败，点击刷新');
+    }
+  }
+
+  Future<void> _open(Widget page) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    if (mounted) {
+      await _load();
+      await _loadWorkbench();
+    }
+  }
+
+  Widget _tile(IconData icon, String title, VoidCallback? action,
+          {int? count}) =>
+      Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+            onTap: action,
+            child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Badge(
+                          isLabelVisible: count != null && count > 0,
+                          label: Text('${count ?? 0}'),
+                          child: Icon(icon, size: 28)),
+                      const SizedBox(height: 10),
+                      Text(title, textAlign: TextAlign.center),
+                    ]))),
       );
+  Widget _grid(List<Widget> entries) => LayoutBuilder(
+      builder: (context, bounds) => GridView.count(
+            crossAxisCount: bounds.maxWidth > 680 ? 4 : 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio:
+                (bounds.maxWidth / (bounds.maxWidth > 680 ? 4 : 2)) /
+                    (96 + MediaQuery.textScalerOf(context).scale(16) * 2),
+            children: entries,
+          ));
+
+  @override
+  Widget build(BuildContext context) {
+    final canWrite = context.watch<AuthProvider>().isSupervisor;
+    return Scaffold(
+      appBar: AppBar(title: Text(project.name), actions: [
+        IconButton(
+            tooltip: '刷新',
+            onPressed: () async {
+              await _load();
+              await _loadWorkbench();
+            },
+            icon: const Icon(Icons.refresh)),
+      ]),
+      bottomNavigationBar: NavigationBar(
+          selectedIndex: _tab,
+          onDestinationSelected: (v) => setState(() => _tab = v),
+          destinations: const [
+            NavigationDestination(
+                icon: Icon(Icons.dashboard_outlined),
+                selectedIcon: Icon(Icons.dashboard),
+                label: '工作台'),
+            NavigationDestination(
+                icon: Icon(Icons.folder_outlined),
+                selectedIcon: Icon(Icons.folder),
+                label: '记录'),
+            NavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: '管理'),
+          ]),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () async {
+                await _load();
+                await _loadWorkbench();
+              },
+              child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    if (_tab == 0) ...[
+                      if (_workbenchError != null)
+                        TextButton(
+                            onPressed: _loadWorkbench,
+                            child: Text(_workbenchError!)),
+                      if (canWrite)
+                        Card(
+                            child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(children: [
+                                        const Icon(Icons.edit_note, size: 30),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                            child: Text('我的今日日志',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium)),
+                                        Text(_todayLog == null
+                                            ? '加载中'
+                                            : {
+                                                  'empty': '未填写',
+                                                  'draft': '草稿',
+                                                  'submitted': '已提交'
+                                                }[_todayLog!['status']] ??
+                                                '未填写'),
+                                      ]),
+                                      const SizedBox(height: 8),
+                                      Text(_todayLog?['today'] as String? ??
+                                          '每天记录施工进度和明日计划'),
+                                      if (_todayLog?['status'] == 'submitted')
+                                        Text(
+                                            '提交时间：${_todayLog!['submittedTime']}'),
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                          width: double.infinity,
+                                          child: FilledButton(
+                                            onPressed: _todayLog == null ||
+                                                    project.status != 'active'
+                                                ? null
+                                                : () => _open(
+                                                    ConstructionLogPage(
+                                                        project: project)),
+                                            child: Text(_todayLog?['status'] ==
+                                                    'submitted'
+                                                ? '查看日志'
+                                                : _todayLog?['status'] ==
+                                                        'draft'
+                                                    ? '继续填写'
+                                                    : '填写日志'),
+                                          )),
+                                    ]))),
+                      const SizedBox(height: 12),
+                      Text('待办事项',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      _grid([
+                        _tile(Icons.warning_amber, '异常考勤',
+                            () => _open(AnomalyListPage(project: project)),
+                            count: _anomalyCount),
+                        _tile(
+                            Icons.event_busy_outlined,
+                            '未出工审批',
+                            () => _open(
+                                NoWorkRequestsPage(projectId: project.id)),
+                            count: _requestCount),
+                      ]),
+                      const SizedBox(height: 12),
+                      Text('常用功能',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      _grid([
+                        _tile(Icons.assessment_outlined, '考勤报表',
+                            () => _open(ProjectReportPage(project: project))),
+                        _tile(Icons.add_task, '主管补卡',
+                            workers.isEmpty ? null : _supplementClock),
+                        _tile(
+                            Icons.manage_accounts_outlined,
+                            '用户管理',
+                            () =>
+                                _open(WorkerManagementPage(project: project))),
+                        _tile(
+                            Icons.photo_library_outlined,
+                            '打卡照片',
+                            () =>
+                                _open(ClockPhotoArchivePage(project: project))),
+                      ]),
+                    ],
+                    if (_tab == 1) ...[
+                      Text('项目记录',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 12),
+                      _grid([
+                        _tile(
+                            Icons.description_outlined,
+                            '历史施工日志',
+                            () => _open(
+                                ConstructionLogHistoryPage(project: project))),
+                        _tile(Icons.assessment_outlined, '考勤报表',
+                            () => _open(ProjectReportPage(project: project))),
+                        _tile(
+                            Icons.photo_library_outlined,
+                            '打卡照片归档',
+                            () =>
+                                _open(ClockPhotoArchivePage(project: project))),
+                      ]),
+                    ],
+                    if (_tab == 2) ...[
+                      Text('项目管理',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 12),
+                      _grid([
+                        _tile(
+                            Icons.manage_accounts_outlined,
+                            '用户管理',
+                            () =>
+                                _open(WorkerManagementPage(project: project))),
+                        _tile(Icons.groups_outlined, '班组管理',
+                            () => _manageSettings(true)),
+                        _tile(Icons.schedule, '班次设置',
+                            () => _manageSettings(false)),
+                        _tile(
+                            Icons.badge_outlined,
+                            '主管考勤分配',
+                            () => _open(SupervisorAttendancePage(
+                                projectId: project.id))),
+                        _tile(Icons.gps_fixed, '项目定位', _editProjectLocation),
+                        _tile(Icons.edit_outlined, '项目设置', _editProject),
+                        if (canWrite)
+                          _tile(Icons.notifications_outlined, '日志填写提醒',
+                              _reminderSettings),
+                      ]),
+                    ],
+                  ]),
+            ),
+    );
+  }
+
+  Future<void> _reminderSettings() async {
+    final user = context.read<AuthProvider>().currentUser!;
+    final reminders = LogReminderService.instance;
+    if (!reminders.supported) {
+      _message('本地提醒支持安卓手机，请在手机端设置');
+      return;
+    }
+    var enabled = await reminders.enabled(user.id);
+    var time = await reminders.time(user.id);
+    if (!mounted) return;
+    await showDialog<void>(
+        context: context,
+        builder: (c) => StatefulBuilder(
+            builder: (c, update) => AlertDialog(
+                  title: const Text('日志填写提醒'),
+                  content: Column(mainAxisSize: MainAxisSize.min, children: [
+                    SwitchListTile(
+                        title: const Text('开启提醒'),
+                        value: enabled,
+                        onChanged: (v) => update(() => enabled = v)),
+                    ListTile(
+                        title: const Text('提醒时间（北京时间）'),
+                        trailing: Text(time.format(c)),
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                              context: c, initialTime: time);
+                          if (picked != null) update(() => time = picked);
+                        }),
+                    const Text('多个项目合并提醒；系统省电设置可能延迟通知。'),
+                  ]),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(c),
+                        child: const Text('取消')),
+                    FilledButton(
+                        onPressed: () async {
+                          try {
+                            final ok = await reminders.configure(
+                                user.id, enabled, time);
+                            if (c.mounted) Navigator.pop(c);
+                            _message(ok ? '提醒设置已保存' : '请在手机设置中允许通知');
+                          } catch (_) {
+                            _message('提醒设置失败，请重试');
+                          }
+                        },
+                        child: const Text('保存'))
+                  ],
+                )));
+  }
+
+  Future<void> _manageSettings(bool teamsOnly) async {
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => StatefulBuilder(
+                builder: (c, refresh) => Scaffold(
+                      appBar: AppBar(title: Text(teamsOnly ? '班组管理' : '班次设置')),
+                      body: ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: _configurationItems(
+                              teamsOnly, () => refresh(() {}))),
+                    ))));
+    if (mounted) await _load();
+  }
+
+  List<Widget> _configurationItems(bool teamsOnly, VoidCallback refresh) {
+    return [
+      if (teamsOnly) ...[
+        _header(
+            '班组',
+            teams.length,
+            shifts.isEmpty
+                ? null
+                : () async {
+                    await _addTeam();
+                    refresh();
+                  }),
+        if (teams.isEmpty) const ListTile(title: Text('暂未设置班组')),
+        ...teams.map((t) => ListTile(
+            leading:
+                Icon(Icons.groups, color: t.status == 1 ? null : Colors.grey),
+            title: Text(t.name),
+            subtitle: Text(
+                '默认班次：${_shiftName(t.shiftId)}${t.status == 1 ? '' : ' · 已停用'}'),
+            onTap: () async {
+              await _manageTeamMembers(t);
+              refresh();
+            },
+            trailing: PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'edit') await _editTeam(t);
+                if (value == 'members') await _manageTeamMembers(t);
+                if (value == 'delete') await _deleteTeam(t);
+                if (value == 'toggle') await _toggleTeam(t);
+                refresh();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'edit', child: Text('编辑')),
+                const PopupMenuItem(value: 'members', child: Text('管理成员')),
+                PopupMenuItem(
+                    value: 'toggle', child: Text(t.status == 1 ? '停用' : '启用')),
+                const PopupMenuItem(value: 'delete', child: Text('删除班组')),
+              ],
+            ))),
+      ],
+      if (!teamsOnly) ...[
+        _header('班次', shifts.length, () async {
+          await _addShift();
+          refresh();
+        }),
+        if (shifts.isEmpty) const ListTile(title: Text('暂未设置班次')),
+        ...shifts.map((s) => ListTile(
+            leading:
+                Icon(Icons.schedule, color: s.status == 1 ? null : Colors.grey),
+            title: Text(s.name),
+            subtitle: Text(
+                '${_typeName(s.shiftType)}  ${s.startTime}–${s.shiftType == 'night' ? '次日 ' : ''}${s.endTime}${s.status == 1 ? '' : ' · 已停用'}'),
+            trailing: PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'edit') {
+                  await _editShift(s);
+                } else {
+                  await _toggleShift(s);
+                }
+                refresh();
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'edit', child: Text('编辑')),
+                PopupMenuItem(
+                    value: 'toggle', child: Text(s.status == 1 ? '停用' : '启用')),
+              ],
+            ))),
+      ],
+    ];
+  }
 
   Widget _header(String title, int count, VoidCallback? onAdd) => Padding(
         padding: const EdgeInsets.only(top: 20, bottom: 4),

@@ -4,6 +4,7 @@ import '../core/config/auth_storage_keys.dart';
 import '../core/network/dio_client.dart';
 import '../models/user_info.dart';
 import '../services/auth_service.dart';
+import '../services/log_reminder_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider() {
@@ -63,6 +64,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     final result = await AuthService.login(username, password);
     if (result.isSuccess && result.data != null) {
+      try {
+        await LogReminderService.instance.clear();
+      } catch (_) {/* Notification setup must not block login. */}
       final data = result.data!;
       _token = data.token;
       _currentUser = data.user;
@@ -79,6 +83,9 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    try {
+      await LogReminderService.instance.clear();
+    } catch (_) {/* Always allow logout. */}
     await _clearToken();
     _currentUser = null;
     notifyListeners();
@@ -93,6 +100,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _handleUnauthorized() {
+    LogReminderService.instance.clear().catchError((Object _) {});
     _token = null;
     _currentUser = null;
     notifyListeners();

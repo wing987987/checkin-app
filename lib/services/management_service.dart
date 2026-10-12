@@ -12,6 +12,29 @@ import '../models/checkin_supervisor.dart';
 import '../models/checkin_job_type.dart';
 
 class ManagementService {
+  static Future<ApiResult<void>> changeAttendancePause(int workerId,
+      int projectId, String action, String effective, String reason) async {
+    final r =
+        await _client.post('/api/ck/workers/$workerId/attendance-pause', data: {
+      'projectId': projectId,
+      'action': action,
+      'effective': effective,
+      'reason': reason
+    });
+    return ApiResult.fromJson(r.data, (_) {});
+  }
+
+  static Future<ApiResult<List<Map<String, dynamic>>>> attendancePauseHistory(
+      int workerId, int projectId) async {
+    final r = await _client.get(
+        '/api/ck/workers/$workerId/attendance-pause/history',
+        queryParameters: {'projectId': projectId});
+    return ApiResult.fromJson(
+        r.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
   static Future<ApiResult<List<Map<String, dynamic>>>> attendanceSupervisors(
       int projectId) async {
     final r =
@@ -244,10 +267,13 @@ class ManagementService {
     return ApiResult.fromJson(response.data, (value) => value);
   }
 
-  static Future<ApiResult<List<AttendanceAnomaly>>> anomalies(
-      int projectId) async {
+  static Future<ApiResult<List<AttendanceAnomaly>>> anomalies(int projectId,
+      {String? date}) async {
     final response = await _client.get('/api/ck/attendance/anomalies',
-        queryParameters: {'projectId': projectId});
+        queryParameters: {
+          'projectId': projectId,
+          if (date != null) 'date': date
+        });
     return ApiResult.fromJson(
         response.data,
         (data) => (data as List)

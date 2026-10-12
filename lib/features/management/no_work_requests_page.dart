@@ -5,7 +5,8 @@ import '../../providers/auth_provider.dart';
 
 class NoWorkRequestsPage extends StatefulWidget {
   final int projectId;
-  const NoWorkRequestsPage({super.key, required this.projectId});
+  final String? date;
+  const NoWorkRequestsPage({super.key, required this.projectId, this.date});
   @override
   State<NoWorkRequestsPage> createState() => _NoWorkRequestsPageState();
 }
@@ -25,7 +26,10 @@ class _NoWorkRequestsPageState extends State<NoWorkRequestsPage> {
       final r = await ManagementService.noWorkRequests(widget.projectId);
       if (!mounted) return;
       setState(() {
-        items = r.data ?? [];
+        items = (r.data ?? [])
+            .where((v) =>
+                widget.date == null || v['attendanceDate'] == widget.date)
+            .toList();
         error = r.isSuccess ? null : r.message;
       });
     } catch (e) {

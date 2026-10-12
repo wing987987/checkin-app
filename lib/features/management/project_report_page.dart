@@ -209,6 +209,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
             final hasAnomaly = days.any((day) =>
                 day.status != 'normal' &&
                 day.status != 'manual' &&
+                day.status != 'paused' &&
                 day.status != 'in_progress');
             return InkWell(
               borderRadius: BorderRadius.circular(24),
@@ -262,6 +263,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         .where((day) =>
             day.status != 'normal' &&
             day.status != 'manual' &&
+            day.status != 'paused' &&
             day.status != 'in_progress')
         .length;
     final totalUnits = days.fold<double>(0, (sum, day) => sum + day.workUnits);
@@ -357,6 +359,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
   Widget _dayStatus(String status) {
     final label = switch (status) {
       'normal' => '正常',
+      'paused' => '暂停免卡',
       'no_work_pending' => '未出工待审批',
       'no_work_approved' => '批准未出工',
       'no_work_rejected' => '已确认异常',
@@ -368,6 +371,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
     };
     final color = switch (status) {
       'normal' => AppColors.success,
+      'paused' => Colors.grey,
       'no_work_approved' => AppColors.success,
       'no_work_pending' => AppColors.primary,
       'manual' => AppColors.primary,
@@ -418,25 +422,30 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
       );
 
   Widget _clockCard(DailyAttendance day, AttendanceClockDetail clock) {
+    final paused = clock.status == 'paused';
     final missing = clock.status == 'missing';
     final noWork = clock.status.startsWith('no_work');
-    final abnormal = !missing && !clock.countable && !noWork;
-    final color = missing && day.status == 'in_progress'
-        ? AppColors.primary
-        : missing || abnormal
-            ? AppColors.warning
-            : AppColors.success;
-    final label = noWork
-        ? clock.anomalyMessage
-        : missing
-            ? day.status == 'in_progress'
-                ? '待打卡'
-                : clock.acknowledgedMissing
-                    ? '已确认缺卡'
-                    : '未打卡'
-            : abnormal
-                ? '异常'
-                : '有效';
+    final abnormal = !missing && !clock.countable && !noWork && !paused;
+    final color = paused
+        ? Colors.grey
+        : missing && day.status == 'in_progress'
+            ? AppColors.primary
+            : missing || abnormal
+                ? AppColors.warning
+                : AppColors.success;
+    final label = paused
+        ? '暂停免卡'
+        : noWork
+            ? clock.anomalyMessage
+            : missing
+                ? day.status == 'in_progress'
+                    ? '待打卡'
+                    : clock.acknowledgedMissing
+                        ? '已确认缺卡'
+                        : '未打卡'
+                : abnormal
+                    ? '异常'
+                    : '有效';
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 9),
@@ -466,7 +475,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
             '标准：${clock.expectedDayOffset > 0 ? '次日 ' : ''}${clock.expectedTime}',
             style: const TextStyle(color: AppColors.textSecondary)),
         if (clock.acknowledgedMissing)
-          const Text('主管已确认保留缺卡，不计入工时和工数',
+          const Text('主管已确认保留此节点缺卡；完整半天满足条件时自动计0.5工',
               style: TextStyle(color: AppColors.warning, fontSize: 12)),
         if (missing && day.status == 'in_progress')
           const Text('班次尚未结束，暂不能判定为缺卡',
@@ -491,11 +500,12 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
           Text(clock.anomalyMessage,
               style: const TextStyle(color: AppColors.warning, fontSize: 12)),
         if (missing ||
+            paused ||
             clock.hasPhoto ||
             (clock.recordId != null && clock.anomalyMessage.isNotEmpty)) ...[
           const SizedBox(height: 7),
           Wrap(spacing: 6, runSpacing: 4, children: [
-            if (missing &&
+            if ((missing || paused) &&
                 day.workerId != context.read<AuthProvider>().currentUser?.id &&
                 !['pending', 'approved', 'rejected']
                     .contains(day.noWorkStatus) &&
@@ -698,8 +708,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
 
   Future<void> _chooseSupplement(DailyAttendance day) async {
     final missing = day.clocks
-        .where(
-            (clock) => clock.status == 'missing' && clock.checkpointId != null)
+        .where((clock) =>
+            (clock.status == 'missing' || clock.status == 'paused') &&
+            clock.checkpointId != null)
         .toList();
     final selected = await showDialog<Object>(
       context: context,
@@ -919,6 +930,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         .where((day) =>
             day.status != 'normal' &&
             day.status != 'manual' &&
+            day.status != 'paused' &&
             day.status != 'no_work_approved' &&
             day.status != 'no_work_pending' &&
             day.status != 'in_progress')

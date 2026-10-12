@@ -8,6 +8,7 @@ import 'providers/auth_provider.dart';
 import 'services/app_update_service.dart';
 import 'core/widgets/update_dialog.dart';
 import 'core/theme/app_theme.dart';
+import 'services/log_reminder_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,7 @@ class CheckinApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: LogReminderService.navigatorKey,
       title: '昭臣打卡',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,

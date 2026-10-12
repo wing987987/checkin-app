@@ -13,6 +13,9 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../worker/worker_home_page.dart';
 import '../worker/worker_report_page.dart';
+import '../../services/log_reminder_service.dart';
+import '../../services/construction_log_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SupervisorHomePage extends StatefulWidget {
   const SupervisorHomePage({super.key});
@@ -20,18 +23,88 @@ class SupervisorHomePage extends StatefulWidget {
   State<SupervisorHomePage> createState() => _SupervisorHomePageState();
 }
 
-class _SupervisorHomePageState extends State<SupervisorHomePage> {
+class _SupervisorHomePageState extends State<SupervisorHomePage>
+    with WidgetsBindingObserver {
   List<CheckinProject> _projects = const [];
   bool _loading = true;
   String? _error;
+  bool _fetching = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    LogReminderService.instance.taps.addListener(_notificationTapped);
     _load();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    LogReminderService.instance.taps.removeListener(_notificationTapped);
+    super.dispose();
+  }
+
+  void _notificationTapped() {
+    if (mounted) _openReminderTarget();
+  }
+
+  Future<void> _openReminderTarget() async {
+    if (!mounted || !context.read<AuthProvider>().isSupervisor) return;
+    final active = _projects.where((p) => p.status == 'active').toList();
+    if (active.length == 1) {
+      await _openProject(active.single);
+      return;
+    }
+    if (active.isEmpty) {
+      await _load();
+      return;
+    }
+    final selected = await showModalBottomSheet<CheckinProject>(
+        context: context,
+        builder: (c) => SafeArea(
+                child: ListView(shrinkWrap: true, children: [
+              const ListTile(title: Text('选择项目填写施工日志')),
+              ...active.map((p) => ListTile(
+                  title: Text(p.name),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.pop(c, p))),
+            ])));
+    if (selected != null && mounted) await _openProject(selected);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _load();
+  }
+
+  Future<void> _syncReminders() async {
+    final auth = context.read<AuthProvider>();
+    final reminders = LogReminderService.instance;
+    if (!auth.isSupervisor || !reminders.supported) return;
+    final actor = auth.currentUser!.id;
+    final active = _projects.where((p) => p.status == 'active').toList();
+    final prefs = await SharedPreferences.getInstance();
+    for (final project in active) {
+      final r = await ConstructionLogService.mine(project.id);
+      if (r.isSuccess && r.data?['status'] == 'submitted') {
+        await prefs.setBool(
+            'log_submitted_${actor}_${project.id}_${r.data!['today']}', true);
+      }
+    }
+    if (!mounted || auth.currentUser?.id != actor) return;
+    await reminders.sync(actor, active.map((p) => p.id).toList());
+    if (prefs.getBool('log_reminder_asked_$actor') != true &&
+        active.isNotEmpty) {
+      await prefs.setBool('log_reminder_asked_$actor', true);
+      await reminders.configure(
+          actor, await reminders.enabled(actor), await reminders.time(actor));
+    }
+  }
+
   Future<void> _load() async {
+    if (_fetching) return;
+    _fetching = true;
     setState(() {
       _loading = true;
       _error = null;
@@ -43,10 +116,23 @@ class _SupervisorHomePageState extends State<SupervisorHomePage> {
         _projects = result.data ?? const [];
         _error = result.isSuccess ? null : result.message;
       });
+      if (result.isSuccess) {
+        try {
+          await _syncReminders();
+        } catch (_) {
+          /* Project loading remains usable without notifications. */
+        }
+      }
     } catch (_) {
       if (mounted) setState(() => _error = '项目加载失败，请检查网络');
     } finally {
+      _fetching = false;
       if (mounted) setState(() => _loading = false);
+      if (mounted && LogReminderService.instance.consumeLaunch()) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _openReminderTarget();
+        });
+      }
     }
   }
 

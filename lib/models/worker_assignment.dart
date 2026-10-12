@@ -1,4 +1,7 @@
 class WorkerAssignment {
+  final bool clockPaused;
+  final String pauseStatus;
+  final String? pauseStartAt, resumeAt;
   final String role;
   final int workerId;
   final String username;
@@ -18,6 +21,10 @@ class WorkerAssignment {
 
   const WorkerAssignment(
       {required this.workerId,
+      this.clockPaused = false,
+      this.pauseStatus = 'active',
+      this.pauseStartAt,
+      this.resumeAt,
       this.role = 'worker',
       required this.username,
       required this.realName,
@@ -36,6 +43,10 @@ class WorkerAssignment {
 
   factory WorkerAssignment.fromJson(Map<String, dynamic> json) =>
       WorkerAssignment(
+        clockPaused: json['clockPaused'] == true,
+        pauseStatus: json['pauseStatus'] as String? ?? 'active',
+        pauseStartAt: json['pauseStartAt'] as String?,
+        resumeAt: json['resumeAt'] as String?,
         role: json['role'] as String? ?? 'worker',
         workerId: json['workerId'] as int,
         username: json['username'] as String? ?? '',

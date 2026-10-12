@@ -22,6 +22,7 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -69,6 +70,10 @@ android {
             signingConfig = signingConfigs.findByName("release")
         }
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 // 打 release 包时若缺少 release 签名配置，配置阶段直接失败（不影响 debug 构建）
