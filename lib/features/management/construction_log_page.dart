@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../../core/theme/app_theme.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -409,10 +410,18 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
                         child: const Text('重试'))
                   ]))
                 : ListView(padding: const EdgeInsets.all(16), children: [
-                    Text(
-                        _record?['projectName'] as String? ??
-                            widget.project.name,
-                        style: Theme.of(context).textTheme.titleLarge),
+                    Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                            color: AppColors.soft,
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Text(
+                            _record?['projectName'] as String? ??
+                                widget.project.name,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(color: AppColors.primary))),
                     const SizedBox(height: 8),
                     Text('$_date  星期${[
                       '一',
@@ -427,38 +436,72 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
                       Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                              '提交主管：${_record?['supervisorName']}\n提交时间：${_record?['submittedTime']}\n已提交，不可修改')),
+                              '提交主管：${_record?['supervisorName']}\n提交时间：${_record?['submittedTime']}\n已提交，不可修改',
+                              style: const TextStyle(
+                                  color: AppColors.textSecondary,
+                                  height: 1.6))),
                     const SizedBox(height: 16),
                     _summaryCard(),
                     const SizedBox(height: 16),
+                    if (_readOnly)
+                      _sectionHeading(
+                          '今日施工进度', Icons.task_alt, AppColors.primary),
                     TextField(
                         controller: _progress,
                         readOnly: _readOnly,
                         enabled: !_saving,
-                        minLines: 4,
+                        minLines: _readOnly ? 1 : 4,
                         maxLines: null,
                         maxLength: _readOnly ? null : 5000,
-                        decoration: const InputDecoration(
-                            labelText: '今日施工进度',
+                        decoration: InputDecoration(
+                            filled: true,
+                            fillColor: AppColors.primary.withValues(alpha: .04),
+                            labelStyle: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700),
+                            labelText: _readOnly ? null : '今日施工进度',
                             hintText: '填写施工部位、完成情况，可分条描述',
                             alignLabelWithHint: true,
-                            border: OutlineInputBorder())),
+                            enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                    color: AppColors.primary
+                                        .withValues(alpha: .2))),
+                            border: const OutlineInputBorder())),
                     const SizedBox(height: 16),
+                    if (_readOnly)
+                      _sectionHeading('明日施工计划', Icons.event_note_outlined,
+                          AppColors.purple),
                     TextField(
                         controller: _plan,
                         readOnly: _readOnly,
                         enabled: !_saving,
-                        minLines: 4,
+                        minLines: _readOnly ? 1 : 4,
                         maxLines: null,
                         maxLength: _readOnly ? null : 5000,
-                        decoration: const InputDecoration(
-                            labelText: '明日施工计划',
+                        decoration: InputDecoration(
+                            filled: true,
+                            fillColor: AppColors.purple.withValues(alpha: .04),
+                            labelStyle: const TextStyle(
+                                color: AppColors.purple,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700),
+                            labelText: _readOnly ? null : '明日施工计划',
                             hintText: '填写明日施工部位、目标和安排',
                             alignLabelWithHint: true,
-                            border: OutlineInputBorder())),
+                            enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                    color: AppColors.purple
+                                        .withValues(alpha: .2))),
+                            border: const OutlineInputBorder())),
                     const SizedBox(height: 16),
                     Text('施工图片 ${_photos.length}/6',
-                        style: Theme.of(context).textTheme.titleMedium),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(color: AppColors.primary)),
                     if (!_readOnly)
                       const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
@@ -515,25 +558,76 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
             Row(children: [
               Expanded(
                   child: Text('昨日考勤 · $_yesterday',
-                      style: Theme.of(context).textTheme.titleMedium)),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: AppColors.primary))),
               if (!_readOnly)
                 IconButton(
                     onPressed: _refreshing ? null : _refreshSummary,
                     icon: const Icon(Icons.refresh),
                     tooltip: '刷新考勤')
             ]),
-            if (_readOnly) const Text('以下为提交时保存的考勤情况'),
+            if (_readOnly)
+              const Text('以下为提交时保存的考勤情况',
+                  style:
+                      TextStyle(fontSize: 12, color: AppColors.textSecondary)),
             if (_refreshing) const LinearProgressIndicator(),
             if (_summaryError != null)
               Text(_summaryError!, style: const TextStyle(color: Colors.red)),
             if (_summary != null) ...[
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                  builder: (context, constraints) =>
+                      Wrap(spacing: 8, runSpacing: 8, children: [
+                        _attendanceMetric(
+                            '应出勤',
+                            '${_summary!['expectedPeople']} 人',
+                            AppColors.primary,
+                            constraints.maxWidth),
+                        _attendanceMetric(
+                            '实际打卡',
+                            '${_summary!['clockedPeople']} 人',
+                            const Color(0xFF168348),
+                            constraints.maxWidth),
+                        _attendanceMetric(
+                            '暂停免卡',
+                            '${_summary!['pausedPeople'] ?? 0} 人',
+                            AppColors.textSecondary,
+                            constraints.maxWidth),
+                      ])),
+              const SizedBox(height: 12),
+              Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                      color: (_summary!['pendingCount'] as num? ?? 0) > 0
+                          ? const Color(0xFFFFF3E8)
+                          : const Color(0xFFF0F8F3),
+                      borderRadius: BorderRadius.circular(8)),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            '待处理 ${_summary!['pendingPeople']} 人 / ${_summary!['pendingCount']} 条',
+                            style: TextStyle(
+                                color:
+                                    (_summary!['pendingCount'] as num? ?? 0) > 0
+                                        ? const Color(0xFFAC5100)
+                                        : const Color(0xFF168348),
+                                fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 4),
+                        Text(
+                            '已处理节点 ${_summary!['resolvedCount']} 个 · 未出工待审批 ${_summary!['noWorkPendingPeople'] ?? 0} 人',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textSecondary)),
+                      ])),
+              const SizedBox(height: 12),
               Text(
-                  '应出勤 ${_summary!['expectedPeople']} 人 · 实际打卡 ${_summary!['clockedPeople']} 人 · 暂停免卡 ${_summary!['pausedPeople'] ?? 0} 人'),
-              Text(
-                  '待处理 ${_summary!['pendingPeople']} 人 / ${_summary!['pendingCount']} 条 · 已处理节点 ${_summary!['resolvedCount']} 个'),
-              Text('未出工申请待审批 ${_summary!['noWorkPendingPeople'] ?? 0} 人'),
-              Text(
-                  '工时 ${_summary!['workHours']} 小时 · 加班 ${_summary!['overtimeHours']} 小时 · 工数 ${_summary!['workUnits']}'),
+                  '工时 ${_summary!['workHours']} 小时 · 加班 ${_summary!['overtimeHours']} 小时 · 工数 ${_summary!['workUnits']}',
+                  style: const TextStyle(
+                      color: AppColors.strong, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
               const Text('人数按人员去重；昨日考勤不代表今日施工人数。',
                   style: TextStyle(fontSize: 12, color: Colors.grey)),
               if (!_readOnly && (_summary!['pendingCount'] as num? ?? 0) > 0)
@@ -552,6 +646,35 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
                     label: const Text('审批昨日未出工申请')),
             ],
           ])));
+  Widget _sectionHeading(String title, IconData icon, Color color) => Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 8),
+        Expanded(
+            child: Text(title,
+                style: TextStyle(
+                    color: color, fontSize: 16, fontWeight: FontWeight.w700)))
+      ]));
+
+  Widget _attendanceMetric(
+          String label, String value, Color color, double width) =>
+      Container(
+        width: width < 280 ? (width - 8) / 2 : (width - 16) / 3,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+            color: color.withValues(alpha: .06),
+            borderRadius: BorderRadius.circular(8)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary)),
+          const SizedBox(height: 4),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w700, color: color)),
+        ]),
+      );
   Widget _photoTile(int index, _LogPhoto p) => Card(
       child: Padding(
           padding: const EdgeInsets.all(8),

@@ -17,7 +17,9 @@ import '../../core/theme/app_theme.dart';
 class AnomalyListPage extends StatefulWidget {
   final CheckinProject project;
   final String? date;
-  const AnomalyListPage({super.key, required this.project, this.date});
+  final List<AttendanceAnomaly>? initialItems;
+  const AnomalyListPage(
+      {super.key, required this.project, this.date, this.initialItems});
   @override
   State<AnomalyListPage> createState() => _AnomalyListPageState();
 }
@@ -149,17 +151,30 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
   List<AttendanceAnomaly> items = const [];
   bool loading = true;
   bool showResolved = false;
+  String? _loadError;
   @override
   void initState() {
     super.initState();
-    _load();
+    if (widget.initialItems != null) {
+      items = List.of(widget.initialItems!);
+      loading = false;
+    } else {
+      _load();
+    }
   }
 
   Future<void> _load() async {
-    setState(() => loading = true);
+    setState(() {
+      loading = true;
+      _loadError = null;
+    });
     try {
-      final r = await ManagementService.anomalies(widget.project.id, date: widget.date);
+      final r = await ManagementService.anomalies(widget.project.id,
+          date: widget.date);
+      if (!r.isSuccess) throw Exception(r.message);
       if (mounted) setState(() => items = r.data ?? const []);
+    } catch (_) {
+      if (mounted) setState(() => _loadError = '异常加载失败，请重试');
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -177,45 +192,79 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
     final resolved = showResolved
         ? items.where((e) => e.resolved).toList()
         : <AttendanceAnomaly>[];
+    final sections = [
+      (
+        title: '附加班次待确认',
+        description: '需要确认工时和工数',
+        entries: extra,
+        color: AppColors.primary
+      ),
+      (
+        title: '缺卡',
+        description: '检查缺失的打卡节点',
+        entries: missing,
+        color: AppColors.warning
+      ),
+      (
+        title: '异常打卡',
+        description: '围栏外或时间不符',
+        entries: abnormal,
+        color: AppColors.danger
+      ),
+      if (showResolved)
+        (
+          title: '已处理记录',
+          description: '可查看处理历史',
+          entries: resolved,
+          color: AppColors.success
+        ),
+    ];
+    final rows = <Widget Function()>[
+      () => _summary(extra.length, missing.length, abnormal.length),
+      for (final section in sections.where((s) => s.entries.isNotEmpty)) ...[
+        () => _section(
+            section.title, section.description, section.entries, section.color),
+        for (final item in section.entries) () => _card(item, section.color),
+        () => const SizedBox(height: 16),
+      ],
+    ];
     return Scaffold(
-      appBar: AppBar(title: Text(widget.date == null ? '异常考勤' : '${widget.date} 异常考勤'), actions: [
-        IconButton(
-            tooltip: '未出工申请审批',
-            icon: const Icon(Icons.event_busy_outlined),
-            onPressed: () async {
-              await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) =>
-                          NoWorkRequestsPage(projectId: widget.project.id, date: widget.date)));
-              if (mounted) await _load();
-            }),
-        Row(children: [
-          const Text('显示已处理'),
-          Switch(
-              value: showResolved,
-              onChanged: (v) => setState(() => showResolved = v))
-        ])
-      ]),
+      appBar: AppBar(
+          title: Text(widget.date == null ? '异常考勤' : '${widget.date} 异常考勤'),
+          actions: [
+            IconButton(
+                tooltip: '未出工申请审批',
+                icon: const Icon(Icons.event_busy_outlined),
+                onPressed: () async {
+                  await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => NoWorkRequestsPage(
+                              projectId: widget.project.id,
+                              date: widget.date)));
+                  if (mounted) await _load();
+                }),
+            Row(children: [
+              const Text('显示已处理'),
+              Switch(
+                  value: showResolved,
+                  onChanged: (v) => setState(() => showResolved = v))
+            ])
+          ]),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : pending.isEmpty && resolved.isEmpty
-              ? const Center(child: Text('没有待处理异常'))
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                    children: [
-                      _summary(extra.length, missing.length, abnormal.length),
-                      _section(
-                          '附加班次待确认', '需要确认工时和工数', extra, AppColors.primary),
-                      _section('缺卡', '检查缺失的打卡节点', missing, AppColors.warning),
-                      _section('异常打卡', '围栏外或时间不符', abnormal, AppColors.danger),
-                      if (showResolved)
-                        _section(
-                            '已处理记录', '可查看处理历史', resolved, AppColors.success),
-                    ],
-                  )),
+          : _loadError != null
+              ? Center(
+                  child: TextButton(onPressed: _load, child: Text(_loadError!)))
+              : pending.isEmpty && resolved.isEmpty
+                  ? const Center(child: Text('没有待处理异常'))
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        itemCount: rows.length,
+                        itemBuilder: (_, index) => rows[index](),
+                      )),
     );
   }
 
@@ -261,8 +310,6 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
             style:
                 const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       ),
-      ...entries.map((item) => _card(item, color)),
-      const SizedBox(height: 16),
     ]);
   }
 

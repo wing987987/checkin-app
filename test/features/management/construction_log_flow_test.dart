@@ -14,16 +14,24 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _Auth extends AuthProvider {
+  final bool boss;
+  _Auth({this.boss = false});
   @override
   UserInfo get currentUser => UserInfo(
-      id: 1, username: 'supervisor', realName: '张主管', role: 'supervisor');
+      id: 1,
+      username: 'supervisor',
+      realName: '张主管',
+      role: boss ? 'boss' : 'supervisor');
   @override
-  bool get isSupervisor => true;
+  bool get isSupervisor => !boss;
+  @override
+  bool get isBoss => boss;
 }
 
 class _Api implements HttpClientAdapter {
   final historyQueries = <Map<String, dynamic>>[];
   int summaryCalls = 0, saves = 0;
+  int mineCalls = 0;
   Map<String, dynamic>? saved;
   bool submitted = false;
   Map<String, dynamic> get log => {
@@ -73,6 +81,7 @@ class _Api implements HttpClientAdapter {
         {'id': 2, 'name': '李主管'}
       ];
     } else if (options.path.endsWith('/mine')) {
+      mineCalls++;
       data = log;
     } else if (options.path.endsWith('/attendance-summary')) {
       summaryCalls++;
@@ -111,11 +120,11 @@ void main() {
     DioClient.instance.dio.httpClientAdapter = api;
   });
   Future<void> show(WidgetTester tester, Widget page,
-      {double scale = 1}) async {
+      {double scale = 1, bool boss = false}) async {
     await tester.binding.setSurfaceSize(const Size(360, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(ChangeNotifierProvider<AuthProvider>.value(
-        value: _Auth(),
+        value: _Auth(boss: boss),
         child: MaterialApp(
             builder: (c, child) => MediaQuery(
                 data: MediaQuery.of(c)
@@ -176,7 +185,23 @@ void main() {
     await tester.tap(find.text('李主管').last);
     await tester.pumpAndSettle();
     expect(api.historyQueries.last['supervisorId'], 2);
-    expect(find.text('2026-10-11 · 李主管'), findsOneWidget);
+    expect(find.text('2026-10-11'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, '李主管'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets(
+      'boss opens project logs without personal log or writing reminder',
+      (tester) async {
+    await show(tester, const ProjectManagementPage(project: project),
+        boss: true);
+    expect(find.text('我的今日日志'), findsNothing);
+    expect(api.mineCalls, 0);
+    await tester.ensureVisible(find.text('项目施工日志'));
+    await tester.tap(find.text('项目施工日志'));
+    await tester.pumpAndSettle();
+    expect(api.historyQueries.last.containsKey('supervisorId'), false);
+    expect(find.text('2026-10-11'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, '张主管'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

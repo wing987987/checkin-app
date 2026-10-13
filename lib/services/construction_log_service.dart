@@ -24,9 +24,10 @@ class ConstructionLogService {
               queryParameters: {'projectId': projectId, 'date': date}))
           .data);
   static Future<ApiResult<List<Map<String, dynamic>>>> history(int projectId,
-      {String? date, int? supervisorId}) async {
+      {String? date, int? supervisorId, int offset = 0}) async {
     final r = await _client.get(_path, queryParameters: {
       'projectId': projectId,
+      if (offset > 0) 'offset': offset,
       if (date != null) 'date': date,
       if (supervisorId != null) 'supervisorId': supervisorId
     });

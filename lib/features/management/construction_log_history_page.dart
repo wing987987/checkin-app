@@ -18,6 +18,8 @@ class _ConstructionLogHistoryPageState
   String? _date, _error;
   int? _supervisor;
   bool _loading = true;
+  bool _loadingMore = false, _hasMore = false;
+  int _generation = 0;
   @override
   void initState() {
     super.initState();
@@ -25,6 +27,7 @@ class _ConstructionLogHistoryPageState
   }
 
   Future<void> _load() async {
+    final generation = ++_generation;
     setState(() {
       _loading = true;
       _error = null;
@@ -38,16 +41,46 @@ class _ConstructionLogHistoryPageState
       final r = results[0];
       if (!r.isSuccess) throw Exception(r.message);
       if (!results[1].isSuccess) throw Exception(results[1].message);
-      if (mounted) {
+      if (mounted && generation == _generation) {
         setState(() {
           _items = r.data ?? [];
           _authors = results[1].data ?? [];
+          _hasMore = _items.length == 200;
+          _loadingMore = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _error = '日志加载失败，请重试');
+      if (mounted && generation == _generation) {
+        setState(() => _error = '日志加载失败，请重试');
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _generation) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final generation = _generation;
+    setState(() => _loadingMore = true);
+    try {
+      final r = await ConstructionLogService.history(widget.project.id,
+          date: _date, supervisorId: _supervisor, offset: _items.length);
+      if (!r.isSuccess) throw Exception(r.message);
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _items.addAll(r.data ?? []);
+        _hasMore = (r.data?.length ?? 0) == 200;
+      });
+    } catch (_) {
+      if (mounted && generation == _generation) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('加载失败，请重试')));
+      }
+    } finally {
+      if (mounted && generation == _generation) {
+        setState(() => _loadingMore = false);
+      }
     }
   }
 
@@ -71,7 +104,7 @@ class _ConstructionLogHistoryPageState
       for (final row in _authors) row['id'] as int: row['name'] as String
     };
     return Scaffold(
-        appBar: AppBar(title: const Text('历史施工日志'), actions: [
+        appBar: AppBar(title: const Text('项目施工日志'), actions: [
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh))
         ]),
         body: Column(children: [
@@ -132,27 +165,50 @@ class _ConstructionLogHistoryPageState
                                   const Padding(
                                       padding: EdgeInsets.all(32),
                                       child: Center(child: Text('暂无已提交日志'))),
-                                ..._items.map((row) => Card(
-                                    child: ListTile(
-                                        title: Text(
-                                            '${row['logDate']} · ${row['supervisorName']}'),
-                                        subtitle: Text(
-                                            row['progress'] as String,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis),
-                                        trailing:
-                                            const Icon(Icons.chevron_right),
-                                        onTap: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    ConstructionLogPage(
-                                                        project: widget.project,
-                                                        logId: row['id']
-                                                            as int)))))),
-                                const Padding(
+                                for (final date in _items
+                                    .map((row) => row['logDate'] as String)
+                                    .toSet()
+                                    .toList()
+                                  ..sort((a, b) => b.compareTo(a))) ...[
+                                  Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          0, 16, 0, 8),
+                                      child: Text(date,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium)),
+                                  ..._items
+                                      .where((row) => row['logDate'] == date)
+                                      .map((row) => Card(
+                                          child: ListTile(
+                                              title: Text(
+                                                  '${row['supervisorName']}'),
+                                              subtitle: Text(
+                                                  row['progress'] as String,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis),
+                                              trailing: const Icon(
+                                                  Icons.chevron_right),
+                                              onTap: () => Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                      builder: (_) =>
+                                                          ConstructionLogPage(
+                                                              project: widget.project,
+                                                              logId: row['id'] as int)))))),
+                                ],
+                                if (_hasMore)
+                                  TextButton(
+                                      onPressed: _loading || _loadingMore
+                                          ? null
+                                          : _loadMore,
+                                      child: Text(
+                                          _loadingMore ? '加载中…' : '加载更早日志')),
+                                Padding(
                                     padding: EdgeInsets.all(12),
-                                    child: Text('显示符合筛选条件的最近200份日志',
+                                    child: Text(
+                                        '已显示 ${_items.length} 份日志 · 日期由新到旧',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                             color: Colors.grey, fontSize: 12))),
