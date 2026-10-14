@@ -92,21 +92,25 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
           subtitle: Text(
               '用户名：${worker.username} · 工种：${worker.jobType?.isNotEmpty == true ? worker.jobType : '未设置'}\n${worker.teamName.isEmpty ? '未分配班组' : worker.teamName} · ${worker.shiftName.isEmpty ? '未设置班次' : worker.shiftName}${worker.personalShiftOverride ? '（个人班次）' : '（班组班次）'}'),
           isThreeLine: true,
-          trailing:
-              worker.workerId == context.watch<AuthProvider>().currentUser?.id
-                  ? const Text('本人 · 只读')
-                  : PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') _edit(worker);
-                        if (value == 'transfer') _transfer(worker);
-                        if (value == 'reset') _reset(worker);
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'edit', child: Text('编辑用户')),
-                        PopupMenuItem(value: 'transfer', child: Text('项目转移')),
-                        PopupMenuItem(value: 'reset', child: Text('重置密码')),
-                      ],
-                    ),
+          trailing: worker.workerId ==
+                  context.watch<AuthProvider>().currentUser?.id
+              ? const Text('本人 · 只读')
+              : PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') _edit(worker);
+                    if (value == 'transfer') _transfer(worker);
+                    if (value == 'reset') _reset(worker);
+                    if (value == 'field') _fieldWork(worker);
+                    if (value == 'fieldHistory') _fieldHistory(worker);
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('编辑用户')),
+                    PopupMenuItem(value: 'transfer', child: Text('项目转移')),
+                    PopupMenuItem(value: 'reset', child: Text('重置密码')),
+                    PopupMenuItem(value: 'field', child: Text('外勤安排 / 取消')),
+                    PopupMenuItem(value: 'fieldHistory', child: Text('外勤操作记录')),
+                  ],
+                ),
         ),
         SwitchListTile(
           title: const Text('允许打卡'),
@@ -125,10 +129,202 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
         ),
         Align(
             alignment: Alignment.centerRight,
-            child: TextButton(
-                onPressed: () => _pauseHistory(worker),
-                child: const Text('暂停 / 恢复记录')))
+            child: Wrap(spacing: 8, children: [
+              TextButton.icon(
+                  onPressed: worker.workerId ==
+                          context.watch<AuthProvider>().currentUser?.id
+                      ? null
+                      : () => _fieldWork(worker),
+                  icon: const Icon(Icons.badge_outlined, size: 18),
+                  label: const Text('外勤安排')),
+              TextButton(
+                  onPressed: () => _pauseHistory(worker),
+                  child: const Text('暂停 / 恢复记录'))
+            ]))
       ]));
+
+  Future<void> _fieldWork(WorkerAssignment worker) async {
+    try {
+      final plans = await ManagementService.fieldWorkPlans(
+          worker.workerId, widget.project.id);
+      if (!mounted) return;
+      if (!plans.isSuccess) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(plans.message)));
+        return;
+      }
+      final reason = TextEditingController();
+      final today = DateTime.now().toUtc().add(const Duration(hours: 8));
+      var nextDay = false, saving = false;
+      String? error;
+      String date() => today
+          .add(Duration(days: nextDay ? 1 : 0))
+          .toIso8601String()
+          .substring(0, 10);
+      bool active() => (plans.data ?? []).any((p) =>
+          p['attendanceDate'].toString().substring(0, 10) == date() &&
+          p['status'] == 'active');
+      await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => StatefulBuilder(
+              builder: (_, update) => AlertDialog(
+                    title: const Text('外勤安排'),
+                    content: DialogScrollView(
+                        child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text(worker.realName,
+                              style: const TextStyle(
+                                  color: AppColors.textSecondary)),
+                          const SizedBox(height: 16),
+                          SegmentedButton<bool>(
+                              expandedInsets: EdgeInsets.zero,
+                              segments: const [
+                                ButtonSegment(
+                                    value: false, label: Text('当天外勤')),
+                                ButtonSegment(value: true, label: Text('次日外勤'))
+                              ],
+                              selected: {nextDay},
+                              onSelectionChanged: saving
+                                  ? null
+                                  : (v) => update(() {
+                                        nextDay = v.first;
+                                        error = null;
+                                      })),
+                          const SizedBox(height: 12),
+                          Text(
+                              '${date()} · ${active() ? '已安排外勤，可取消' : '未安排外勤'}',
+                              style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 12),
+                          Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                  color: AppColors.surfaceSubtle,
+                                  borderRadius: BorderRadius.circular(8)),
+                              child: const Text(
+                                  '外勤只需上班、下班两次定位拍照，不限制围栏或原班次时间。完整有效计1工，不扣午休、无加班；缺卡计0工，次日结算。暂停优先。\n普通记录保留，但该日只按外勤结算；已有外勤打卡后不能取消。',
+                                  style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 13,
+                                      height: 1.6))),
+                          const SizedBox(height: 12),
+                          TextField(
+                              controller: reason,
+                              enabled: !saving,
+                              maxLength: 500,
+                              minLines: 2,
+                              maxLines: 4,
+                              decoration: InputDecoration(
+                                  labelText:
+                                      active() ? '取消原因（必填）' : '外勤事由（必填）')),
+                          if (error != null)
+                            Text(error!,
+                                style:
+                                    const TextStyle(color: AppColors.danger)),
+                        ])),
+                    actions: [
+                      TextButton(
+                          onPressed: saving ? null : () => Navigator.pop(ctx),
+                          child: const Text('返回')),
+                      FilledButton(
+                          onPressed: saving
+                              ? null
+                              : () async {
+                                  if (reason.text.trim().isEmpty) {
+                                    update(() => error = '请填写原因');
+                                    return;
+                                  }
+                                  update(() {
+                                    saving = true;
+                                    error = null;
+                                  });
+                                  try {
+                                    final result =
+                                        await ManagementService.changeFieldWork(
+                                            worker.workerId,
+                                            widget.project.id,
+                                            date(),
+                                            active() ? 'cancel' : 'arrange',
+                                            reason.text.trim());
+                                    if (!ctx.mounted) return;
+                                    if (result.isSuccess) {
+                                      Navigator.pop(ctx);
+                                      if (!mounted) return;
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(const SnackBar(
+                                              content: Text('外勤安排已更新')));
+                                    } else {
+                                      update(() {
+                                        saving = false;
+                                        error = result.message;
+                                      });
+                                    }
+                                  } catch (_) {
+                                    if (ctx.mounted)
+                                      update(() {
+                                        saving = false;
+                                        error = '操作失败，请检查网络后重试';
+                                      });
+                                  }
+                                },
+                          child: Text(saving
+                              ? '保存中…'
+                              : active()
+                                  ? '取消外勤安排'
+                                  : '确认安排外勤'))
+                    ],
+                  )));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      reason.dispose();
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('外勤安排加载失败')));
+    }
+  }
+
+  Future<void> _fieldHistory(WorkerAssignment worker) async {
+    try {
+      final r = await ManagementService.fieldWorkPlans(
+          worker.workerId, widget.project.id,
+          history: true);
+      if (!mounted) return;
+      if (!r.isSuccess) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(r.message)));
+        return;
+      }
+      await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+                  title: Text('${worker.realName} · 外勤记录'),
+                  content: SizedBox(
+                      width: 420,
+                      child: DialogScrollView(
+                          child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        if (r.data?.isEmpty != false) const Text('暂无操作记录'),
+                        for (final row in r.data ?? <Map<String, dynamic>>[])
+                          ListTile(
+                              title: Text(
+                                  '${row['attendanceDate']} · ${row['action'] == 'arrange' ? '安排外勤' : '取消外勤'}'),
+                              subtitle: Text(
+                                  '${row['actorName']} · ${row['createTime']}\n${row['reason']}')),
+                      ]))),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('关闭'))
+                  ]));
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('操作记录加载失败')));
+    }
+  }
 
   Future<void> _changePause(WorkerAssignment worker) async {
     final resume =

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../models/checkin_project.dart';
 import '../../services/construction_log_service.dart';
 import 'construction_log_page.dart';
+import 'construction_log_export_page.dart';
 
 class ConstructionLogHistoryPage extends StatefulWidget {
   final CheckinProject project;
@@ -105,6 +106,16 @@ class _ConstructionLogHistoryPageState
     };
     return Scaffold(
         appBar: AppBar(title: const Text('项目施工日志'), actions: [
+          IconButton(
+              tooltip: '导出PDF',
+              icon: const Icon(Icons.picture_as_pdf),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => ConstructionLogExportPage(
+                          project: widget.project,
+                          supervisorId: _supervisor,
+                          supervisorName: supervisors[_supervisor])))),
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh))
         ]),
         body: Column(children: [

@@ -40,6 +40,11 @@ class _ManualHoursDialogState extends State<ManualHoursDialog> {
   final _reason = TextEditingController();
   String? _error;
   bool _saving = false;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.item.shiftId < 0) _units.text = '1';
+  }
 
   @override
   void dispose() {
@@ -65,6 +70,10 @@ class _ManualHoursDialogState extends State<ManualHoursDialog> {
     }
     if (_reason.text.trim().isEmpty) {
       setState(() => _error = '请填写确认原因');
+      return;
+    }
+    if (widget.item.shiftId < 0 && workUnits != 0 && workUnits != 1) {
+      setState(() => _error = '外勤工数只能为0工或1工');
       return;
     }
     setState(() {
@@ -115,8 +124,10 @@ class _ManualHoursDialogState extends State<ManualHoursDialog> {
                 controller: _units,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                    labelText: '确认工数', hintText: '例如 0.5；有问题可填 0'),
+                decoration: InputDecoration(
+                    labelText: '确认工数',
+                    hintText:
+                        widget.item.shiftId < 0 ? '外勤填写0或1' : '例如 0.5；有问题可填 0'),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -315,7 +326,9 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
 
   Widget _card(AttendanceAnomaly item, Color color) {
     final isExtra = item.anomalyType == 'extra_shift_pending';
-    final needsManual = isExtra || item.anomalyType == 'manual_hours_pending';
+    final needsManual = isExtra ||
+        item.anomalyType == 'manual_hours_pending' ||
+        item.anomalyType == 'field_order_pending';
     final action = item.resolved
         ? '查看处理历史'
         : needsManual
@@ -457,9 +470,11 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                                   _dayClockRow(clock, recordId, null)),
                             ]),
                         const Divider(height: 24),
-                        const Text(
-                            '确认并自动调整：按班次节点的标准日期、时间和项目定位计入工时，原始打卡保留。\n确认保持异常：仍不计工时，并从待处理列表移除；以后可在报表中重新处理。',
-                            style: TextStyle(height: 1.5)),
+                        Text(
+                            item.shiftId < 0
+                                ? '确认外勤有效：保留实际打卡时间和定位，重新计算外勤考勤。\n确认保持异常：仍不计工时，并从待处理列表移除。'
+                                : '确认并自动调整：按班次节点的标准日期、时间和项目定位计入工时，原始打卡保留。\n确认保持异常：仍不计工时，并从待处理列表移除；以后可在报表中重新处理。',
+                            style: const TextStyle(height: 1.5)),
                       ])),
                 ),
                 actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -473,7 +488,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                       child: const Text('确认保持异常')),
                   FilledButton(
                       onPressed: () => Navigator.pop(ctx, 'auto'),
-                      child: const Text('确认并自动调整')),
+                      child: Text(item.shiftId < 0 ? '确认外勤有效' : '确认并自动调整')),
                 ]));
     if (action == null || !mounted) return;
     if (action == 'reject' &&
@@ -613,6 +628,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                 onPressed: () => Navigator.pop(ctx, 'manual'),
                 child: const Text('确认工时/工数')),
           if (item.checkpointId != null &&
+              item.shiftId >= 0 &&
               !alreadyAcknowledged &&
               !alreadyManual)
             TextButton(

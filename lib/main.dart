@@ -9,6 +9,7 @@ import 'services/app_update_service.dart';
 import 'core/widgets/update_dialog.dart';
 import 'core/theme/app_theme.dart';
 import 'services/log_reminder_service.dart';
+import 'core/widgets/log_reminder_host.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +38,7 @@ class CheckinApp extends StatelessWidget {
       title: '昭臣打卡',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      builder: (_, child) => LogReminderHost(child: child ?? const SizedBox()),
       home: const AuthWrapper(),
     );
   }

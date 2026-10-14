@@ -9,6 +9,21 @@ class ConstructionLogService {
   static ApiResult<Map<String, dynamic>> _map(dynamic data) =>
       ApiResult.fromJson(data, (v) => Map<String, dynamic>.from(v));
 
+  static Future<ApiResult<Map<String, dynamic>>> exportPdf(int projectId,
+          {required String startDate,
+          required String endDate,
+          int? supervisorId}) async =>
+      _map((await _client.post('$_path/exports?projectId=$projectId', data: {
+        'startDate': startDate,
+        'endDate': endDate,
+        if (supervisorId != null) 'supervisorId': supervisorId,
+      }))
+          .data);
+
+  static Future<ApiResult<Map<String, dynamic>>> exportStatus(
+          String id) async =>
+      _map((await _client.get('$_path/exports/$id')).data);
+
   static Future<ApiResult<Map<String, dynamic>>> mine(int projectId) async =>
       _map((await _client
               .get('$_path/mine', queryParameters: {'projectId': projectId}))

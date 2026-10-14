@@ -421,7 +421,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
       return;
     }
     var enabled = await reminders.enabled(user.id);
-    var time = await reminders.time(user.id);
+    const time = LogReminderService.reminderTime;
     if (!mounted) return;
     await showDialog<void>(
         context: context,
@@ -430,18 +430,14 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                   title: const Text('日志填写提醒'),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
                     SwitchListTile(
-                        title: const Text('开启提醒'),
+                        title: const Text('开启系统通知'),
                         value: enabled,
                         onChanged: (v) => update(() => enabled = v)),
                     ListTile(
                         title: const Text('提醒时间（北京时间）'),
-                        trailing: Text(time.format(c)),
-                        onTap: () async {
-                          final picked = await showTimePicker(
-                              context: c, initialTime: time);
-                          if (picked != null) update(() => time = picked);
-                        }),
-                    const Text('多个项目合并提醒；系统省电设置可能延迟通知。'),
+                        trailing: Text(time.format(c))),
+                    const Text(
+                        '每天17:00提醒所有主管；App内提醒同时保留。多个项目合并提醒，已全部提交则不再催填。系统省电设置可能延迟系统通知。'),
                   ]),
                   actions: [
                     TextButton(

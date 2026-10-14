@@ -42,7 +42,7 @@ void main() {
     expect(scheduled, hasLength(1));
     expect(scheduled.single.arguments['timeZoneName'], 'Asia/Shanghai');
     expect(
-        scheduled.single.arguments['scheduledDateTime'], contains('T18:00:00'));
+        scheduled.single.arguments['scheduledDateTime'], contains('T17:00:00'));
     expect(scheduled.single.arguments['matchDateTimeComponents'], 0);
   });
   test('completion of all projects moves reminder to tomorrow', () async {
@@ -79,5 +79,47 @@ void main() {
     calls.clear();
     await service.clear();
     expect(calls.where((c) => c.method == 'cancelAll'), hasLength(1));
+  });
+  test('previous custom time is replaced with daily 17:00', () async {
+    SharedPreferences.setMockInitialValues({'log_reminder_minutes_1': 18 * 60});
+    expect(await service.time(1), const TimeOfDay(hour: 17, minute: 0));
+    await service.sync(1, [10]);
+    expect(
+        calls
+            .lastWhere((c) => c.method == 'zonedSchedule')
+            .arguments['scheduledDateTime'],
+        contains('T17:00:00'));
+  });
+  test(
+      'in-app reminder starts at Beijing 17:00 and is once per account per day',
+      () async {
+    await service.sync(1, [10, 20]);
+    final before = DateTime.utc(2026, 10, 14, 8, 59);
+    final at = DateTime.utc(2026, 10, 14, 9);
+    expect(await service.shouldShowInApp(1, now: before), false);
+    await service.dismissInApp(1, now: before);
+    expect(await service.shouldShowInApp(1, now: at), true);
+    expect(await service.pendingProjects(1, now: at), [10, 20]);
+    await service.dismissInApp(1, now: at);
+    expect(
+        await service.shouldShowInApp(1, now: at.add(const Duration(hours: 3))),
+        false);
+    expect(
+        await service.shouldShowInApp(1, now: at.add(const Duration(days: 1))),
+        true);
+    await service.clear();
+    expect(await service.shouldShowInApp(1, now: at), false);
+    await service.sync(2, [20]);
+    expect(await service.shouldShowInApp(2, now: at), true);
+  });
+  test('in-app reminders survive denied or disabled system notifications',
+      () async {
+    final at = DateTime.utc(2026, 10, 14, 9);
+    SharedPreferences.setMockInitialValues({'log_reminder_enabled_1': false});
+    await service.sync(1, [10]);
+    expect(calls.where((c) => c.method == 'zonedSchedule'), isEmpty);
+    expect(await service.shouldShowInApp(1, now: at), true);
+    await service.markSubmitted(1, 10, '2026-10-14');
+    expect(await service.shouldShowInApp(1, now: at), false);
   });
 }

@@ -16,6 +16,7 @@ import '../worker/worker_report_page.dart';
 import '../../services/log_reminder_service.dart';
 import '../../services/construction_log_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'construction_log_page.dart';
 
 class SupervisorHomePage extends StatefulWidget {
   const SupervisorHomePage({super.key});
@@ -51,13 +52,25 @@ class _SupervisorHomePageState extends State<SupervisorHomePage>
 
   Future<void> _openReminderTarget() async {
     if (!mounted || !context.read<AuthProvider>().isSupervisor) return;
+    final auth = context.read<AuthProvider>();
+    final actor = auth.currentUser!.id;
+    await LogReminderService.instance.dismissInApp(actor);
+    if (!mounted || !auth.isSupervisor || auth.currentUser?.id != actor) return;
     final active = _projects.where((p) => p.status == 'active').toList();
-    if (active.length == 1) {
-      await _openProject(active.single);
+    final pendingIds = await LogReminderService.instance.pendingProjects(actor);
+    if (!mounted || !auth.isSupervisor || auth.currentUser?.id != actor) return;
+    final pending = active.where((p) => pendingIds.contains(p.id)).toList();
+    if (pending.length == 1) {
+      await _openReminderLog(pending.single);
       return;
     }
     if (active.isEmpty) {
       await _load();
+      return;
+    }
+    if (pending.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('今日负责项目的施工日志均已提交')));
       return;
     }
     final selected = await showModalBottomSheet<CheckinProject>(
@@ -65,12 +78,20 @@ class _SupervisorHomePageState extends State<SupervisorHomePage>
         builder: (c) => SafeArea(
                 child: ListView(shrinkWrap: true, children: [
               const ListTile(title: Text('选择项目填写施工日志')),
-              ...active.map((p) => ListTile(
+              ...pending.map((p) => ListTile(
                   title: Text(p.name),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => Navigator.pop(c, p))),
             ])));
-    if (selected != null && mounted) await _openProject(selected);
+    if (selected != null && mounted) await _openReminderLog(selected);
+  }
+
+  Future<void> _openReminderLog(CheckinProject project) async {
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => ConstructionLogPage(project: project)));
+    if (mounted) await _load();
   }
 
   @override
@@ -81,7 +102,7 @@ class _SupervisorHomePageState extends State<SupervisorHomePage>
   Future<void> _syncReminders() async {
     final auth = context.read<AuthProvider>();
     final reminders = LogReminderService.instance;
-    if (!auth.isSupervisor || !reminders.supported) return;
+    if (!auth.isSupervisor) return;
     final actor = auth.currentUser!.id;
     final active = _projects.where((p) => p.status == 'active').toList();
     final prefs = await SharedPreferences.getInstance();
@@ -94,7 +115,8 @@ class _SupervisorHomePageState extends State<SupervisorHomePage>
     }
     if (!mounted || auth.currentUser?.id != actor) return;
     await reminders.sync(actor, active.map((p) => p.id).toList());
-    if (prefs.getBool('log_reminder_asked_$actor') != true &&
+    if (reminders.supported &&
+        prefs.getBool('log_reminder_asked_$actor') != true &&
         active.isNotEmpty) {
       await prefs.setBool('log_reminder_asked_$actor', true);
       await reminders.configure(

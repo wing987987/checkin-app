@@ -158,6 +158,16 @@ class _WorkerHomePageState extends State<WorkerHomePage>
                             '考勤日期 ${value.attendanceDate} · 围栏 ${value.fenceRadius} 米'),
                       ]))),
           const SizedBox(height: 16),
+          if (value.fieldWork || value.tomorrowFieldWork)
+            Card(
+                color: AppColors.soft,
+                child: ListTile(
+                    leading: const Icon(Icons.badge_outlined,
+                        color: AppColors.primary),
+                    title: Text(value.fieldWork ? '今日外勤' : '已安排次日外勤'),
+                    subtitle: Text(value.fieldWork
+                        ? '只需外勤上班、下班，不限制围栏和班次时间。完整有效计1工；缺卡计0工，午夜结算。${value.fieldReason == null ? '' : '\n事由：${value.fieldReason}'}'
+                        : '次日按自然日进行外勤上下班打卡'))),
           if (value.pauseStatus != 'active')
             Card(
                 child: ListTile(
@@ -180,19 +190,45 @@ class _WorkerHomePageState extends State<WorkerHomePage>
             ),
           ],
           const SizedBox(height: 20),
-          FilledButton.icon(
-              onPressed: clocking || value.isPausedAt(DateTime.now())
-                  ? null
-                  : _selectAndClock,
-              icon: clocking
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.camera_alt),
-              label: Text(clocking ? (clockingStatus ?? '正在提交…') : '定位并拍照打卡')),
-          if (EnvConfig.instance.showTestFeatures ||
-              value.overtimeAvailable) ...[
+          if (value.fieldWork) ...[
+            FilledButton.icon(
+                onPressed: clocking ||
+                        value.isPausedAt(DateTime.now()) ||
+                        value.records
+                            .any((r) => r.checkpointCode == 'field_start')
+                    ? null
+                    : () => _clock(fieldAction: 'start'),
+                icon: const Icon(Icons.login),
+                label: Text(
+                    clocking ? (clockingStatus ?? '正在提交…') : '外勤上班 · 定位拍照')),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+                onPressed: clocking ||
+                        value.isPausedAt(DateTime.now()) ||
+                        !value.records
+                            .any((r) => r.checkpointCode == 'field_start') ||
+                        value.records
+                            .any((r) => r.checkpointCode == 'field_end')
+                    ? null
+                    : () => _clock(fieldAction: 'end'),
+                icon: const Icon(Icons.logout),
+                label: const Text('外勤下班 · 定位拍照')),
+          ] else
+            FilledButton.icon(
+                onPressed: clocking || value.isPausedAt(DateTime.now())
+                    ? null
+                    : _selectAndClock,
+                icon: clocking
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.camera_alt),
+                label:
+                    Text(clocking ? (clockingStatus ?? '正在提交…') : '定位并拍照打卡')),
+          if (!value.fieldWork &&
+              (EnvConfig.instance.showTestFeatures ||
+                  value.overtimeAvailable)) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: clocking || value.isPausedAt(DateTime.now())
@@ -217,7 +253,8 @@ class _WorkerHomePageState extends State<WorkerHomePage>
           padding: const EdgeInsets.all(14),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('${value.extraShift ? '附加班次' : '标准班次'} · ${value.shiftName}',
+            Text(
+                '${value.fieldWork ? '自然日考勤' : value.extraShift ? '附加班次' : '标准班次'} · ${value.shiftName}',
                 style:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             Text(
@@ -346,9 +383,17 @@ class _WorkerHomePageState extends State<WorkerHomePage>
               Text('距项目中心：约 ${distance!.round()} 米'),
               const SizedBox(height: 4),
               Text(
-                inside ? '当前在项目打卡范围内' : '当前在围栏外，提交会产生异常',
+                value.fieldWork
+                    ? '今日外勤，不受项目围栏限制'
+                    : inside
+                        ? '当前在项目打卡范围内'
+                        : '当前在围栏外，提交会产生异常',
                 style: TextStyle(
-                    color: inside ? AppColors.success : AppColors.warning,
+                    color: value.fieldWork
+                        ? AppColors.primary
+                        : inside
+                            ? AppColors.success
+                            : AppColors.warning,
                     fontWeight: FontWeight.w600),
               ),
             ],
@@ -474,7 +519,8 @@ class _WorkerHomePageState extends State<WorkerHomePage>
       .where((record) => record.checkpointCode.startsWith('overtime_'))
       .length;
 
-  Future<void> _clock({bool overtime = false, MySchedule? target}) async {
+  Future<void> _clock(
+      {bool overtime = false, MySchedule? target, String? fieldAction}) async {
     await _refreshPause();
     if (!mounted) return;
     if (schedule?.isPausedAt(DateTime.now()) == true) {
@@ -482,7 +528,12 @@ class _WorkerHomePageState extends State<WorkerHomePage>
           .showSnackBar(const SnackBar(content: Text('打卡已暂停，请联系主管恢复')));
       return;
     }
-    final value = target ?? schedule!;
+    final value = schedule!.fieldWork ? schedule! : target ?? schedule!;
+    if (fieldAction != null && !value.fieldWork) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('外勤安排已变化，请刷新后打卡')));
+      return;
+    }
     if (!overtime && !value.canClockAt(DateTime.now())) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('当前不在允许打卡时段内，请按班次显示的时间打卡。如已漏卡，请联系主管处理。')));
@@ -508,7 +559,7 @@ class _WorkerHomePageState extends State<WorkerHomePage>
         });
       }
       if (!mounted) return;
-      if (distance > value.fenceRadius) {
+      if (!value.fieldWork && distance > value.fenceRadius) {
         final proceed = await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
@@ -536,7 +587,13 @@ class _WorkerHomePageState extends State<WorkerHomePage>
       setState(() => clockingStatus = '正在添加水印…');
       final watermarked =
           await WatermarkUtils.addClockWatermark(await photo.readAsBytes(), [
-        overtime ? '加班打卡' : '${value.shiftName}打卡',
+        value.fieldWork
+            ? fieldAction == 'end'
+                ? '外勤下班'
+                : '外勤上班'
+            : overtime
+                ? '加班打卡'
+                : '${value.shiftName}打卡',
         value.projectName,
         user?.realName ?? user?.username ?? '',
         DateFormat('yyyy-MM-dd HH:mm:ss').format(now),
@@ -552,6 +609,8 @@ class _WorkerHomePageState extends State<WorkerHomePage>
         throw Exception(uploaded.message);
       }
       final payload = {
+        if (value.fieldWork) 'fieldAction': fieldAction ?? 'start',
+        if (value.fieldWork) 'attendanceDate': value.attendanceDate,
         'shiftId': value.shiftId,
         'requestId': '${now.microsecondsSinceEpoch}-${user?.id ?? 0}',
         'gpsLat': latitude,

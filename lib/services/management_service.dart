@@ -12,6 +12,29 @@ import '../models/checkin_supervisor.dart';
 import '../models/checkin_job_type.dart';
 
 class ManagementService {
+  static Future<ApiResult<List<Map<String, dynamic>>>> fieldWorkPlans(
+      int workerId, int projectId,
+      {bool history = false}) async {
+    final r = await _client.get(
+        '/api/ck/workers/$workerId/field-work${history ? '/history' : ''}',
+        queryParameters: {'projectId': projectId});
+    return ApiResult.fromJson(
+        r.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
+  static Future<ApiResult<void>> changeFieldWork(int workerId, int projectId,
+      String date, String action, String reason) async {
+    final r = await _client.post('/api/ck/workers/$workerId/field-work', data: {
+      'projectId': projectId,
+      'attendanceDate': date,
+      'action': action,
+      'reason': reason
+    });
+    return ApiResult.fromJson(r.data, (_) {});
+  }
+
   static Future<ApiResult<void>> changeAttendancePause(int workerId,
       int projectId, String action, String effective, String reason) async {
     final r =

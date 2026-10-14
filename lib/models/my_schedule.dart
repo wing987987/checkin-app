@@ -55,6 +55,8 @@ class ClockStatus {
 }
 
 class MySchedule {
+  final bool fieldWork, tomorrowFieldWork;
+  final String? fieldReason;
   final bool clockPaused;
   final String pauseStatus;
   final String? pauseStartAt, resumeAt;
@@ -86,6 +88,9 @@ class MySchedule {
   final List<MySchedule> extraSchedules;
   const MySchedule(
       {this.allowOutsideClockWindow = false,
+      this.fieldWork = false,
+      this.tomorrowFieldWork = false,
+      this.fieldReason,
       this.clockPaused = false,
       this.pauseStatus = 'active',
       this.pauseStartAt,
@@ -137,6 +142,9 @@ class MySchedule {
               !now.isAfter(windowEnd(point))));
 
   factory MySchedule.fromJson(Map<String, dynamic> json) => MySchedule(
+      fieldWork: json['fieldWork'] == true,
+      tomorrowFieldWork: json['tomorrowFieldWork'] == true,
+      fieldReason: json['fieldReason'] as String?,
       clockPaused: json['clockPaused'] == true,
       pauseStatus: json['pauseStatus'] as String? ?? 'active',
       pauseStartAt: json['pauseStartAt'] as String?,

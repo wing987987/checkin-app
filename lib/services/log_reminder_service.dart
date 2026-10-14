@@ -11,6 +11,12 @@ class LogReminderService {
   LogReminderService._();
   static final navigatorKey = GlobalKey<NavigatorState>();
   final taps = ValueNotifier<int>(0);
+  final changes = ValueNotifier<int>(0);
+  static const reminderTime = TimeOfDay(hour: 17, minute: 0);
+  static DateTime beijingNow([DateTime? now]) =>
+      (now ?? DateTime.now()).toUtc().add(const Duration(hours: 8));
+  static String dateKey(DateTime now) =>
+      '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   final _plugin = FlutterLocalNotificationsPlugin();
   int? _actor;
   List<int> _projects = [];
@@ -51,10 +57,37 @@ class LogReminderService {
           .getBool('log_reminder_enabled_$actor') ??
       true;
   Future<TimeOfDay> time(int actor) async {
-    final minutes = (await SharedPreferences.getInstance())
-            .getInt('log_reminder_minutes_$actor') ??
-        18 * 60;
-    return TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60);
+    return reminderTime;
+  }
+
+  Future<List<int>> pendingProjects(int actor, {DateTime? now}) async {
+    if (_actor != actor) return [];
+    final prefs = await SharedPreferences.getInstance();
+    final date = dateKey(beijingNow(now));
+    if (_actor != actor) return [];
+    return _projects
+        .where(
+            (p) => prefs.getBool('log_submitted_${actor}_${p}_$date') != true)
+        .toList();
+  }
+
+  Future<bool> shouldShowInApp(int actor, {DateTime? now}) async {
+    final current = beijingNow(now);
+    if (current.hour < reminderTime.hour || _actor != actor) return false;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('log_reminder_seen_${actor}_${dateKey(current)}') ==
+        true) {
+      return false;
+    }
+    return (await pendingProjects(actor, now: now)).isNotEmpty;
+  }
+
+  Future<void> dismissInApp(int actor, {DateTime? now}) async {
+    final current = beijingNow(now);
+    if (current.hour < reminderTime.hour) return;
+    await (await SharedPreferences.getInstance())
+        .setBool('log_reminder_seen_${actor}_${dateKey(current)}', true);
+    changes.value++;
   }
 
   Future<bool> configure(int actor, bool value, TimeOfDay time) async {
@@ -69,8 +102,7 @@ class LogReminderService {
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('log_reminder_enabled_$actor', value);
-    await prefs.setInt(
-        'log_reminder_minutes_$actor', time.hour * 60 + time.minute);
+    await prefs.setInt('log_reminder_minutes_$actor', reminderTime.hour * 60);
     await sync(actor, _projects);
     return true;
   }
@@ -78,6 +110,7 @@ class LogReminderService {
   Future<void> clear() => _queue(() async {
         _actor = null;
         _projects = [];
+        changes.value++;
         if (supported) {
           await initialize();
           await _plugin.cancelAll();
@@ -93,10 +126,11 @@ class LogReminderService {
   Future<void> sync(int actor, List<int> projectIds) =>
       _queue(() => _sync(actor, List.of(projectIds)));
   Future<void> _sync(int actor, List<int> projectIds) async {
-    if (!supported) return;
-    await initialize();
     _actor = actor;
     _projects = List.of(projectIds);
+    changes.value++;
+    if (!supported) return;
+    await initialize();
     await _plugin.cancelAll();
     if (!await enabled(actor) || projectIds.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
@@ -117,11 +151,14 @@ class LogReminderService {
     await _plugin.zonedSchedule(
         7000,
         '施工日志填写提醒',
-        '请检查今日负责项目的施工日志是否已提交',
+        '已到17点，请填写并提交今日负责项目的施工日志',
         at,
         const NotificationDetails(
-            android: AndroidNotificationDetails('construction_log', '施工日志提醒',
-                channelDescription: '提醒主管填写当天施工日志')),
+            android: AndroidNotificationDetails(
+                'construction_log_1700_v2', '施工日志提醒',
+                channelDescription: '每天17点提醒主管填写当天施工日志',
+                importance: Importance.high,
+                priority: Priority.high)),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.time,
         payload: 'construction_logs');

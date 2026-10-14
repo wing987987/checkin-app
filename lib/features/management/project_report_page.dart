@@ -472,7 +472,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         ]),
         const SizedBox(height: 8),
         Text(
-            '标准：${clock.expectedDayOffset > 0 ? '次日 ' : ''}${clock.expectedTime}',
+            day.shiftId < 0
+                ? '外勤节点 · 不限制班次时间'
+                : '标准：${clock.expectedDayOffset > 0 ? '次日 ' : ''}${clock.expectedTime}',
             style: const TextStyle(color: AppColors.textSecondary)),
         if (clock.acknowledgedMissing)
           const Text('主管已确认保留此节点缺卡；完整半天满足条件时自动计0.5工',
@@ -540,10 +542,10 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('确认并自动调整'),
+        title: Text(day.shiftId < 0 ? '确认外勤打卡有效' : '确认并自动调整'),
         content: Text('${day.workerName} · ${clock.checkpointName}\n'
             '原始时间 ${_dateTime(clock.originalTime)}\n'
-            '将调整到班次标准时间和项目定位，并计入工时。'),
+            '${day.shiftId < 0 ? '保留实际打卡时间和定位，确认有效后重新计算外勤考勤。' : '将调整到班次标准时间和项目定位，并计入工时。'}'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
