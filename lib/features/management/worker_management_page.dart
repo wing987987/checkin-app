@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use, curly_braces_in_flow_control_structures
 
 import 'package:flutter/material.dart';
+import 'assignment_history_page.dart';
 
 import '../../models/checkin_project.dart';
 import '../../models/checkin_shift.dart';
@@ -59,7 +60,16 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text('${widget.project.name} · 用户管理')),
+        appBar: AppBar(title: Text('${widget.project.name} · 用户管理'), actions: [
+          IconButton(
+              tooltip: '分配 / 转移记录',
+              icon: const Icon(Icons.history),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => AssignmentHistoryPage(
+                          projectId: widget.project.id)))),
+        ]),
         floatingActionButton: FloatingActionButton.extended(
             onPressed: teams.isEmpty ? null : () => _edit(),
             icon: const Icon(Icons.person_add_alt_1),
@@ -97,13 +107,27 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
               ? const Text('本人 · 只读')
               : PopupMenuButton<String>(
                   onSelected: (value) {
+                    if (value == 'history')
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => AssignmentHistoryPage(
+                                  projectId: widget.project.id,
+                                  workerId: worker.workerId)));
+                    if (value == 'promote') _promote(worker);
                     if (value == 'edit') _edit(worker);
                     if (value == 'transfer') _transfer(worker);
                     if (value == 'reset') _reset(worker);
                     if (value == 'field') _fieldWork(worker);
                     if (value == 'fieldHistory') _fieldHistory(worker);
                   },
-                  itemBuilder: (_) => const [
+                  itemBuilder: (_) => [
+                    if (context.read<AuthProvider>().isBoss &&
+                        worker.role == 'worker')
+                      const PopupMenuItem(
+                          value: 'promote', child: Text('转为主管')),
+                    const PopupMenuItem(
+                        value: 'history', child: Text('分配 / 转移记录')),
                     PopupMenuItem(value: 'edit', child: Text('编辑用户')),
                     PopupMenuItem(value: 'transfer', child: Text('项目转移')),
                     PopupMenuItem(value: 'reset', child: Text('重置密码')),
@@ -142,6 +166,94 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                   child: const Text('暂停 / 恢复记录'))
             ]))
       ]));
+
+  Future<void> _promote(WorkerAssignment worker) async {
+    final selected = <int>{widget.project.id};
+    var saving = false;
+    String? error;
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+          builder: (_, update) => AlertDialog(
+                title: Text('将${worker.realName}转为主管'),
+                content: SizedBox(
+                    width: double.maxFinite,
+                    child: DialogScrollView(
+                        child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('账号：${worker.username}'),
+                        const SizedBox(height: 12),
+                        const Text(
+                            '手机号账号、密码、历史考勤和原考勤安排均保留。转换后可管理所选项目，需退出账号重新登录。'),
+                        const SizedBox(height: 16),
+                        const Text('负责项目（至少选择一个）'),
+                        ...projects.map((project) => CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(project.name),
+                              value: selected.contains(project.id),
+                              onChanged: saving
+                                  ? null
+                                  : (value) => update(() {
+                                        value == true
+                                            ? selected.add(project.id)
+                                            : selected.remove(project.id);
+                                      }),
+                            )),
+                        if (error != null)
+                          Text(error!,
+                              style: const TextStyle(color: Colors.red)),
+                      ],
+                    ))),
+                actions: [
+                  TextButton(
+                      onPressed:
+                          saving ? null : () => Navigator.pop(ctx, false),
+                      child: const Text('取消')),
+                  FilledButton(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              if (selected.isEmpty) {
+                                update(() => error = '请至少选择一个负责项目');
+                                return;
+                              }
+                              update(() {
+                                saving = true;
+                                error = null;
+                              });
+                              try {
+                                final result =
+                                    await ManagementService.promoteWorker(
+                                        worker.workerId, selected.toList());
+                                if (!ctx.mounted) return;
+                                if (result.isSuccess) {
+                                  Navigator.pop(ctx, true);
+                                } else {
+                                  update(() {
+                                    error = result.message;
+                                    saving = false;
+                                  });
+                                }
+                              } catch (_) {
+                                if (ctx.mounted)
+                                  update(() {
+                                    error = '转换失败，请检查网络后重试';
+                                    saving = false;
+                                  });
+                              }
+                            },
+                      child: Text(saving ? '处理中…' : '确认转为主管')),
+                ],
+              )),
+    );
+    if (saved == true && mounted) {
+      _message('已转为主管，请该用户退出账号后重新登录');
+      await _load();
+    }
+  }
 
   Future<void> _fieldWork(WorkerAssignment worker) async {
     try {
@@ -792,7 +904,8 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                           targets.firstWhere((project) => project.id == id))),
                   const Padding(
                       padding: EdgeInsets.only(top: 12),
-                      child: Text('转移后原班组和个人班次将清空；工种保留。历史打卡记录永久保留。',
+                      child: Text(
+                          '转移即时生效，需在目标项目重新分配班组和班次；工种、历史考勤和转移记录保留。当天已在原项目打卡的，目标项目从下一考勤日打卡。',
                           style: TextStyle(color: Colors.orange))),
                 ]),
                 actions: [

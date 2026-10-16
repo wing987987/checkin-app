@@ -136,6 +136,17 @@ class ManagementService {
             CheckinSupervisor.fromJson(Map<String, dynamic>.from(value)));
   }
 
+  static Future<ApiResult<CheckinSupervisor>> promoteWorker(
+      int workerId, List<int> projectIds) async {
+    final response = await _client.put(
+        '/api/ck/workers/$workerId/promote-supervisor',
+        data: {'projectIds': projectIds});
+    return ApiResult.fromJson(
+        response.data,
+        (value) =>
+            CheckinSupervisor.fromJson(Map<String, dynamic>.from(value)));
+  }
+
   static Future<ApiResult<CheckinSupervisor>> assignSupervisorProjects(
       int supervisorId, List<int> projectIds) async {
     final response = await _client.put(
@@ -168,6 +179,18 @@ class ManagementService {
     final response = await _client.put('/api/ck/projects/$id', data: data);
     return ApiResult.fromJson(response.data,
         (value) => CheckinProject.fromJson(Map<String, dynamic>.from(value)));
+  }
+
+  static Future<ApiResult<List<Map<String, dynamic>>>> assignmentHistory(
+      int projectId,
+      {int? workerId}) async {
+    final response = await _client.get(
+        '/api/ck/projects/$projectId/assignment-history',
+        queryParameters: {if (workerId != null) 'workerId': workerId});
+    return ApiResult.fromJson(
+        response.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
   }
 
   static Future<ApiResult<List<CheckinTeam>>> teams(int projectId) async {
