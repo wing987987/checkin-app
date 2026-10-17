@@ -392,6 +392,20 @@ class ManagementService {
     return ApiResult.fromJson(response.data, (value) => value);
   }
 
+  static Future<ApiResult<dynamic>> acknowledgeMissingShift(
+      AttendanceAnomaly item) async {
+    final response = await _client.post(
+      '/api/ck/attendance/missing/acknowledge-shift',
+      data: {
+        'workerId': item.workerId,
+        'projectId': item.projectId,
+        'shiftId': item.shiftId,
+        'attendanceDate': item.attendanceDate,
+      },
+    );
+    return ApiResult.fromJson(response.data, (value) => value);
+  }
+
   static Future<ApiResult<dynamic>> acknowledgeMissing(
       int referenceRecordId, int checkpointId) async {
     final response = await _client.post(

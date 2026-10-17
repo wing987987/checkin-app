@@ -334,7 +334,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         : needsManual
             ? '确认工时 / 工数'
             : item.missing
-                ? '查看并补卡'
+                ? (item.anomalyType == 'missing_all' ? '处理整班缺卡' : '查看并补卡')
                 : '处理异常打卡';
     final detail = isExtra ? '附加班次未达到 1 工，请主管确认实际工时和工数' : item.anomalyMessage;
     return Card(
@@ -562,6 +562,47 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
   }
 
   Future<void> _reviewMissing(AttendanceAnomaly item) async {
+    if (item.anomalyType == 'missing_all' && !item.resolved) {
+      final action = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('确认保留整班缺卡？'),
+          content: Text('${item.workerName} · ${item.attendanceDate}\n'
+              '${item.teamName} / ${item.shiftName}\n\n'
+              '确认后保留本班次全部缺卡，不计工时和工数，并移出待处理列表。之后仍可在考勤报表补卡。\n'
+              '如需核对或补卡，请选择逐个处理。'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('暂不处理')),
+            OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'individual'),
+                child: const Text('逐个处理')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, 'retain'),
+                child: const Text('确认保留整班缺卡')),
+          ],
+        ),
+      );
+      if (!mounted || action == null) return;
+      if (action == 'retain') {
+        try {
+          final result = await ManagementService.acknowledgeMissingShift(item);
+          if (!mounted) return;
+          if (result.isSuccess) {
+            await _load();
+          } else {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(result.message)));
+          }
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('确认保留整班缺卡失败，请检查网络和后端版本后重试')));
+          }
+        }
+        return;
+      }
+    }
     if (item.referenceRecordId == 0) {
       await Navigator.push(
           context,
