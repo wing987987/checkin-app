@@ -163,6 +163,8 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
   bool loading = true;
   bool showResolved = false;
   String? _loadError;
+  bool _processing = false;
+  String _supplementReason = '';
   @override
   void initState() {
     super.initState();
@@ -344,11 +346,9 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         onTap: item.workerId == context.read<AuthProvider>().currentUser?.id
             ? () => ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('自己的考勤只能查看，请由同项目另一位主管处理')))
-            : item.missing
-                ? () => _reviewMissing(item)
-                : item.resolved
-                    ? () => _showHistory(item)
-                    : () => _resolve(item),
+            : item.resolved
+                ? () => _showHistory(item)
+                : () => _processDay(item),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child:
@@ -424,18 +424,71 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
     );
   }
 
-  Future<void> _resolve(AttendanceAnomaly item) async {
+  String _anomalyKey(AttendanceAnomaly item) =>
+      '${item.workerId}|${item.projectId}|${item.attendanceDate}|${item.shiftId}|${item.recordId}|${item.checkpointId}|${item.anomalyType}';
+
+  Future<void> _processDay(AttendanceAnomaly first) async {
+    if (_processing) return;
+    _processing = true;
+    _supplementReason = '';
+    var current = first;
+    try {
+      while (mounted) {
+        final saved = current.missing
+            ? await _reviewMissing(current)
+            : await _resolve(current);
+        if (!mounted || !saved || _loadError != null) return;
+        final remaining = items
+            .where((item) =>
+                !item.resolved &&
+                item.workerId == first.workerId &&
+                item.projectId == first.projectId &&
+                item.attendanceDate == first.attendanceDate)
+            .toList();
+        if (remaining.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                  '${first.workerName} · ${first.attendanceDate} 的异常已处理完成')));
+          return;
+        }
+        // A canceled report visit or unchanged server result must not reopen itself.
+        if (remaining
+            .any((item) => _anomalyKey(item) == _anomalyKey(current))) {
+          return;
+        }
+        remaining.sort((a, b) {
+          final shift = a.shiftId.compareTo(b.shiftId);
+          if (shift != 0) return shift;
+          final offset = a.expectedDayOffset.compareTo(b.expectedDayOffset);
+          return offset != 0
+              ? offset
+              : a.expectedTime.compareTo(b.expectedTime);
+        });
+        current = remaining.first;
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('处理失败，请检查网络后重试；已保存的处理会保留')));
+      }
+    } finally {
+      _processing = false;
+      _supplementReason = '';
+    }
+  }
+
+  Future<bool> _resolve(AttendanceAnomaly item) async {
     final recordId = item.recordId;
-    if (recordId == null) return;
+    if (recordId == null) return false;
     final dayResult =
         await ManagementService.anomalyDay(item.referenceRecordId);
-    if (!mounted) return;
+    if (!mounted) return false;
     final days = dayResult.data;
     if (!dayResult.isSuccess || days == null || days.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
               dayResult.message.isEmpty ? '当天打卡明细加载失败' : dayResult.message)));
-      return;
+      return false;
     }
     final action = await showDialog<String>(
         context: context,
@@ -453,7 +506,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                             style: const TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 12),
-                        const Text('当天全部打卡记录',
+                        const Text('保存后继续处理此人当天的下一项异常，可随时取消。\n当天全部打卡记录',
                             style: TextStyle(fontWeight: FontWeight.w600)),
                         const SizedBox(height: 6),
                         ...days.expand((day) => [
@@ -490,26 +543,28 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                       onPressed: () => Navigator.pop(ctx, 'auto'),
                       child: Text(item.shiftId < 0 ? '确认外勤有效' : '确认并自动调整')),
                 ]));
-    if (action == null || !mounted) return;
+    if (action == null || !mounted) return false;
     if (action == 'reject' &&
         !await _confirmRetain(
           item,
           title: '确认保持异常？',
           detail: '这条打卡仍保持异常，不计入工时和工数，并从待处理列表移除。之后可在考勤报表重新处理。',
         )) {
-      return;
+      return false;
     }
-    if (!mounted) return;
+    if (!mounted) return false;
     final result = await ManagementService.resolveAnomaly(recordId, {
       'action': action,
     });
-    if (!mounted) return;
+    if (!mounted) return false;
     if (result.isSuccess) {
       await _load();
+      return true;
     } else {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(result.message)));
     }
+    return false;
   }
 
   Future<void> _showHistory(AttendanceAnomaly item) async {
@@ -561,7 +616,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
     );
   }
 
-  Future<void> _reviewMissing(AttendanceAnomaly item) async {
+  Future<bool> _reviewMissing(AttendanceAnomaly item) async {
     if (item.anomalyType == 'missing_all' && !item.resolved) {
       final action = await showDialog<String>(
         context: context,
@@ -583,13 +638,14 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
           ],
         ),
       );
-      if (!mounted || action == null) return;
+      if (!mounted || action == null) return false;
       if (action == 'retain') {
         try {
           final result = await ManagementService.acknowledgeMissingShift(item);
-          if (!mounted) return;
+          if (!mounted) return false;
           if (result.isSuccess) {
             await _load();
+            return true;
           } else {
             ScaffoldMessenger.of(context)
                 .showSnackBar(SnackBar(content: Text(result.message)));
@@ -600,7 +656,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                 const SnackBar(content: Text('确认保留整班缺卡失败，请检查网络和后端版本后重试')));
           }
         }
-        return;
+        return false;
       }
     }
     if (item.referenceRecordId == 0) {
@@ -611,17 +667,17 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                   project: widget.project,
                   initialDate: DateTime.tryParse(item.attendanceDate))));
       if (mounted) await _load();
-      return;
+      return true;
     }
     final dayResult =
         await ManagementService.anomalyDay(item.referenceRecordId);
-    if (!mounted) return;
+    if (!mounted) return false;
     final days = dayResult.data;
     if (!dayResult.isSuccess || days == null || days.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
               dayResult.message.isEmpty ? '当天打卡明细加载失败' : dayResult.message)));
-      return;
+      return false;
     }
     final currentDays = days
         .where((day) =>
@@ -649,7 +705,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
           child: DialogScrollView(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${item.attendanceDate} 当天全部打卡记录',
+              Text('${item.attendanceDate} 当天全部打卡记录\n保存后继续处理此人当天的下一项异常，可随时退出。',
                   style: const TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               ...days.expand((day) => [
@@ -684,44 +740,47 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         ],
       ),
     );
-    if (action == 'supplement' && mounted) await _supplementMissing(item);
-    if (action == 'manual' && mounted) await _confirmManual(item);
-    if (action == 'acknowledge' && mounted) await _acknowledgeMissing(item);
+    if (action == 'supplement' && mounted) return _supplementMissing(item);
+    if (action == 'manual' && mounted) return _confirmManual(item);
+    if (action == 'acknowledge' && mounted) return _acknowledgeMissing(item);
+    return false;
   }
 
-  Future<void> _acknowledgeMissing(AttendanceAnomaly item) async {
+  Future<bool> _acknowledgeMissing(AttendanceAnomaly item) async {
     final checkpointId = item.checkpointId;
-    if (checkpointId == null) return;
+    if (checkpointId == null) return false;
     if (!await _confirmRetain(
       item,
       title: '确认保留缺卡？',
       detail: '此节点只允许确认一次，之后仍可在考勤报表补卡。若另半天上下班完整、所有异常已处理，系统会自动计0.5工。',
     )) {
-      return;
+      return false;
     }
-    if (!mounted) return;
+    if (!mounted) return false;
     try {
       final result = await ManagementService.acknowledgeMissing(
           item.referenceRecordId, checkpointId);
-      if (!mounted) return;
+      if (!mounted) return false;
       if (result.isSuccess) {
         await _load();
+        return true;
       } else {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(result.message)));
       }
     } on DioException catch (error) {
-      if (!mounted) return;
+      if (!mounted) return false;
       final message = error.response?.statusCode == 404
           ? '当前后端尚未更新“确认保留缺卡”功能，请更新并重启后端服务'
           : '确认保留缺卡失败，请检查网络或稍后重试';
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message)));
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('确认保留缺卡失败，请稍后重试')));
     }
+    return false;
   }
 
   Future<bool> _confirmRetain(AttendanceAnomaly item,
@@ -749,22 +808,26 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
     return confirmed == true;
   }
 
-  Future<void> _confirmManual(AttendanceAnomaly item) async {
+  Future<bool> _confirmManual(AttendanceAnomaly item) async {
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => ManualHoursDialog(item: item),
     );
-    if (saved == true && mounted) await _load();
+    if (saved == true && mounted) {
+      await _load();
+      return true;
+    }
+    return false;
   }
 
-  Future<void> _supplementMissing(AttendanceAnomaly item) async {
+  Future<bool> _supplementMissing(AttendanceAnomaly item) async {
     final checkpointId = item.checkpointId;
     final attendanceDate = DateTime.tryParse(item.attendanceDate);
     final parts = item.expectedTime.split(':');
     if (checkpointId == null || attendanceDate == null || parts.length < 2) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('缺卡节点信息不完整，无法补卡')));
-      return;
+      return false;
     }
     var clockTime = DateTime(
         attendanceDate.year,
@@ -772,7 +835,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         attendanceDate.day + item.expectedDayOffset,
         int.tryParse(parts[0]) ?? 0,
         int.tryParse(parts[1]) ?? 0);
-    final reason = TextEditingController();
+    final reason = TextEditingController(text: _supplementReason);
     final reasonFocus = FocusNode();
     final saved = await showDialog<bool>(
       context: context,
@@ -836,9 +899,14 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
         ),
       ),
     );
+    if (saved == true) _supplementReason = reason.text.trim();
     reason.dispose();
     reasonFocus.dispose();
-    if (saved == true && mounted) await _load();
+    if (saved == true && mounted) {
+      await _load();
+      return true;
+    }
+    return false;
   }
 
   Widget _dayClockRow(AttendanceClockDetail clock, int? targetRecordId,

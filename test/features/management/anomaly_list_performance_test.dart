@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:checkin_app/core/network/dio_client.dart';
 import 'package:checkin_app/core/theme/app_theme.dart';
@@ -20,13 +21,27 @@ class _Auth extends AuthProvider {
 
 class _Api implements HttpClientAdapter {
   int calls = 0;
+  List<Map<String, dynamic>> pending = [];
+  bool failSave = false;
   RequestOptions? savedRequest;
   @override
   Future<ResponseBody> fetch(RequestOptions options,
       Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
     calls++;
     if (options.method == 'POST') savedRequest = options;
-    return ResponseBody.fromString('{"code":200,"message":"成功","data":[]}', 200,
+    if (options.method == 'POST' && !failSave) {
+      pending.removeWhere((item) =>
+          item['shiftId'] == options.data['shiftId'] &&
+          item['workerId'] == options.data['workerId'] &&
+          item['attendanceDate'] == options.data['attendanceDate']);
+    }
+    return ResponseBody.fromString(
+        jsonEncode({
+          'code': failSave && options.method == 'POST' ? 400 : 200,
+          'message': '测试结果',
+          'data': options.method == 'GET' ? pending : null
+        }),
+        200,
         headers: {
           Headers.contentTypeHeader: ['application/json']
         });
@@ -38,6 +53,72 @@ class _Api implements HttpClientAdapter {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  for (final fail in [false, true]) {
+    testWidgets(
+        'continuous day processing isolates worker/date and stops on failure=$fail',
+        (tester) async {
+      final api = _Api()..failSave = fail;
+      Map<String, dynamic> row(int worker, String date, int shift) => {
+            'workerId': worker,
+            'projectId': 10,
+            'shiftId': shift,
+            'workerName': '工人$worker',
+            'attendanceDate': date,
+            'shiftName': '班次$shift',
+            'missing': true,
+            'anomalyType': 'missing_all',
+          };
+      api.pending = [
+        row(2, '2026-10-11', 20),
+        row(2, '2026-10-11', 21),
+        row(3, '2026-10-11', 22),
+        row(2, '2026-10-12', 23)
+      ];
+      DioClient.instance.dio.httpClientAdapter = api;
+      const project = CheckinProject(
+          id: 10,
+          name: '项目',
+          gpsLat: 0,
+          gpsLng: 0,
+          fenceRadius: 100,
+          status: 'active');
+      await tester.pumpWidget(ChangeNotifierProvider<AuthProvider>.value(
+          value: _Auth(),
+          child: MaterialApp(
+              home: AnomalyListPage(
+                  project: project,
+                  initialItems:
+                      api.pending.map(AttendanceAnomaly.fromJson).toList()))));
+      await tester.tap(find.text('处理整班缺卡').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('确认保留整班缺卡'));
+      await tester.pumpAndSettle();
+      if (fail) {
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(api.pending.length, 4);
+      } else {
+        expect(find.text('确认保留整班缺卡？'), findsOneWidget);
+        expect(
+            find.descendant(
+                of: find.byType(AlertDialog),
+                matching: find.textContaining('/ 班次21')),
+            findsOneWidget);
+        await tester.tap(find.text('暂不处理'));
+        await tester.pumpAndSettle();
+        expect(api.pending.length, 3);
+        expect(find.byType(AlertDialog), findsNothing);
+        await tester.tap(find.text('处理整班缺卡').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('确认保留整班缺卡'));
+        await tester.pumpAndSettle();
+        expect(api.pending.length, 2);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.text('工人2 · 2026-10-11 的异常已处理完成'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('whole missing shift offers retain or individual processing',
       (tester) async {
     final api = _Api();

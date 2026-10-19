@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/attendance_report.dart';
+import 'continuous_supplement_dialog.dart';
 import '../../models/checkin_project.dart';
 import '../../core/widgets/zoomable_network_image.dart';
 import '../../services/management_service.dart';
@@ -610,100 +611,15 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
 
   Future<void> _supplementMissing(
       DailyAttendance day, AttendanceClockDetail clock) async {
-    final checkpointId = clock.checkpointId;
-    if (checkpointId == null) return;
-    final attendanceDate = DateTime.tryParse(day.date);
-    final timeParts = clock.expectedTime.split(':');
-    if (attendanceDate == null || timeParts.length < 2) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('标准打卡时间无效，无法补卡')));
-      return;
-    }
-    var clockTime = DateTime(
-      attendanceDate.year,
-      attendanceDate.month,
-      attendanceDate.day + clock.expectedDayOffset,
-      int.tryParse(timeParts[0]) ?? 0,
-      int.tryParse(timeParts[1]) ?? 0,
-    );
-    final reason = TextEditingController();
-    final reasonFocus = FocusNode();
-    final saved = await showDialog<bool>(
+    if (clock.checkpointId == null) return;
+    final savedCount = await showDialog<int>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (_, setLocal) => AlertDialog(
-          title: Text('${day.workerName} · ${clock.checkpointName}补卡'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('补卡时间'),
-              subtitle: Text(DateFormat('yyyy-MM-dd HH:mm').format(clockTime)),
-              trailing: const Icon(Icons.edit_calendar_outlined),
-              onTap: () async {
-                final date = await showDatePicker(
-                    context: ctx,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
-                    initialDate: clockTime.isAfter(DateTime.now())
-                        ? DateTime.now()
-                        : clockTime);
-                if (date == null || !ctx.mounted) return;
-                final time = await showTimePicker(
-                    context: ctx,
-                    initialTime: TimeOfDay.fromDateTime(clockTime));
-                if (time != null) {
-                  setLocal(() => clockTime = DateTime(
-                      date.year, date.month, date.day, time.hour, time.minute));
-                }
-              },
-            ),
-            TextField(
-              controller: reason,
-              focusNode: reasonFocus,
-              autofocus: true,
-              maxLines: 3,
-              decoration: const InputDecoration(hintText: '请输入补卡原因（必填）'),
-            ),
-          ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('取消')),
-            FilledButton(
-              onPressed: () async {
-                if (reason.text.trim().isEmpty) {
-                  reasonFocus.requestFocus();
-                  return;
-                }
-                final result = await ManagementService.supplementClock({
-                  'workerId': day.workerId,
-                  'projectId': day.projectId,
-                  'teamId': day.teamId,
-                  'shiftId': day.shiftId,
-                  'checkpointId': checkpointId,
-                  'attendanceDate': day.date,
-                  'clockTime': clockTime.toIso8601String(),
-                  'reason': reason.text.trim(),
-                });
-                if (!ctx.mounted) return;
-                if (result.isSuccess) {
-                  Navigator.pop(ctx, true);
-                } else {
-                  ScaffoldMessenger.of(ctx)
-                      .showSnackBar(SnackBar(content: Text(result.message)));
-                }
-              },
-              child: const Text('确认补卡'),
-            ),
-          ],
-        ),
-      ),
+      barrierDismissible: false,
+      builder: (_) => ContinuousSupplementDialog(day: day, firstClock: clock),
     );
-    reason.dispose();
-    reasonFocus.dispose();
-    if (saved == true && mounted) {
+    if ((savedCount ?? 0) > 0 && mounted) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('补卡成功')));
+          .showSnackBar(SnackBar(content: Text('已补卡 $savedCount 个节点')));
       await _load();
     }
   }
