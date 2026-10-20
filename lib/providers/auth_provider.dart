@@ -1,3 +1,4 @@
+import '../services/signed_image_urls.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/config/auth_storage_keys.dart';
@@ -59,6 +60,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> login(String username, String password) async {
+    SignedImageUrls.clear();
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -92,6 +94,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _clearToken() async {
+    SignedImageUrls.clear();
     _token = null;
     DioClient.instance.updateToken(null);
     final prefs = await SharedPreferences.getInstance();
@@ -100,6 +103,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _handleUnauthorized() {
+    SignedImageUrls.clear();
     LogReminderService.instance.clear().catchError((Object _) {});
     _token = null;
     _currentUser = null;

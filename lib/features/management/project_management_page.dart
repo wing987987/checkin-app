@@ -843,7 +843,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                                 SizedBox(width: 8),
                                 Expanded(
                                     child: Text(
-                                        '固定打卡窗口\n上班：提前30分钟至延后5分钟\n下班：提前5分钟至延后30分钟')),
+                                        '打卡与加班规则\n上班：提前30分钟至延后5分钟\n中午下班：提前5分钟至延后30分钟\n最后下班：提前5分钟起，白班当天24点前、夜班次日12点前\n超出标准下班每满30分钟计0.5小时加班')),
                               ],
                             ),
                           ),
@@ -1196,7 +1196,7 @@ class _ProjectManagementPageState extends State<ProjectManagementPage> {
                         SizedBox(width: 8),
                         Expanded(
                             child: Text(
-                                '固定打卡窗口\n上班：提前30分钟至延后5分钟\n下班：提前5分钟至延后30分钟')),
+                                '打卡与加班规则\n上班：提前30分钟至延后5分钟\n中午下班：提前5分钟至延后30分钟\n最后下班：提前5分钟起，白班当天24点前、夜班次日12点前\n超出标准下班每满30分钟计0.5小时加班')),
                       ],
                     ),
                   ),

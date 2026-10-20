@@ -546,7 +546,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         title: Text(day.shiftId < 0 ? '确认外勤打卡有效' : '确认并自动调整'),
         content: Text('${day.workerName} · ${clock.checkpointName}\n'
             '原始时间 ${_dateTime(clock.originalTime)}\n'
-            '${day.shiftId < 0 ? '保留实际打卡时间和定位，确认有效后重新计算外勤考勤。' : '将调整到班次标准时间和项目定位，并计入工时。'}'),
+            '${day.shiftId < 0 ? '保留实际打卡时间和定位，确认有效后重新计算外勤考勤。' : '修正异常定位，保留有效的实际打卡时间和加班；超出允许时段才调整到标准时间。'}'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -704,13 +704,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         ? expectedTimes.last
         : DateTime(attendanceDate.year, attendanceDate.month,
             attendanceDate.day, 17, 30);
-    final firstExpected = expectedTimes.isNotEmpty
-        ? expectedTimes.first
-        : DateTime(attendanceDate.year, attendanceDate.month,
-            attendanceDate.day, 6, 30);
-    final nextShiftStart = DateTime(attendanceDate.year, attendanceDate.month,
-        attendanceDate.day + 1, firstExpected.hour, firstExpected.minute);
-    if (!clockTime.isAfter(shiftEnd) || !clockTime.isBefore(nextShiftStart)) {
+    final overtimeDeadline = DateTime(attendanceDate.year, attendanceDate.month,
+        attendanceDate.day + 1, day.shiftType == 'night' ? 12 : 0);
+    if (!clockTime.isAfter(shiftEnd) || !clockTime.isBefore(overtimeDeadline)) {
       clockTime = shiftEnd.add(const Duration(minutes: 30));
     }
     var selectedDayOffset = DateUtils.isSameDay(
@@ -770,7 +766,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                '允许范围：${DateFormat('MM-dd HH:mm').format(shiftEnd)}之后，${DateFormat('MM-dd HH:mm').format(nextShiftStart)}之前',
+                '允许范围：${DateFormat('MM-dd HH:mm').format(shiftEnd)}之后，${DateFormat('MM-dd HH:mm').format(overtimeDeadline)}之前',
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),
@@ -794,10 +790,10 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                   return;
                 }
                 if (!clockTime.isAfter(shiftEnd) ||
-                    !clockTime.isBefore(nextShiftStart)) {
+                    !clockTime.isBefore(overtimeDeadline)) {
                   ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                       content: Text(
-                          '补加班时间必须晚于 ${DateFormat('MM-dd HH:mm').format(shiftEnd)}，并早于 ${DateFormat('MM-dd HH:mm').format(nextShiftStart)}')));
+                          '补加班时间必须晚于 ${DateFormat('MM-dd HH:mm').format(shiftEnd)}，并早于 ${DateFormat('MM-dd HH:mm').format(overtimeDeadline)}')));
                   return;
                 }
                 if (overtimeTimes.isNotEmpty &&
@@ -878,7 +874,7 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
           Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
             _metric(
                 _hours(value.totalWorkHours), '工时参考', AppColors.textSecondary),
-            _metric(_hours(value.totalOvertimeHours), '其中加班',
+            _metric(_hours(value.totalOvertimeHours), '加班工时',
                 AppColors.textSecondary),
           ]),
         ])),

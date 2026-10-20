@@ -1,3 +1,7 @@
+import '../../core/widgets/deferred_image.dart';
+import '../../core/widgets/cached_app_image.dart';
+import '../../core/widgets/image_batch.dart';
+import '../../core/models/api_result.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -18,7 +22,6 @@ class _ClockPhotoArchivePageState extends State<ClockPhotoArchivePage> {
   DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
   List<ClockPhoto> photos = const [];
   final Set<String> expandedDays = {};
-  final Map<int, Future<String?>> urls = {};
   bool loading = true;
   String? error;
 
@@ -40,7 +43,6 @@ class _ClockPhotoArchivePageState extends State<ClockPhotoArchivePage> {
       setState(() {
         photos = result.data ?? const [];
         error = result.isSuccess ? null : result.message;
-        urls.clear();
         expandedDays.clear();
         if (photos.isNotEmpty) expandedDays.add(photos.first.attendanceDate);
       });
@@ -114,15 +116,11 @@ class _ClockPhotoArchivePageState extends State<ClockPhotoArchivePage> {
             if (expanded)
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: items.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
-                      childAspectRatio: .82),
+                child: ImageBatch(
+                  identity: date,
+                  count: items.length,
+                  columns: 2,
+                  childAspectRatio: .82,
                   itemBuilder: (_, photoIndex) => _photoCard(items[photoIndex]),
                 ),
               ),
@@ -165,34 +163,27 @@ class _ClockPhotoArchivePageState extends State<ClockPhotoArchivePage> {
         ),
       );
 
-  Widget _networkPhoto(ClockPhoto photo) => FutureBuilder<String?>(
-        future: urls.putIfAbsent(photo.recordId, () async {
-          final result =
-              await ManagementService.anomalyPhotoViewUrl(photo.recordId);
-          return result.data;
-        }),
-        builder: (_, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(
-                child: CircularProgressIndicator(strokeWidth: 2));
-          }
-          final url = snapshot.data;
-          if (url == null) {
-            return const Center(child: Icon(Icons.broken_image_outlined));
-          }
-          return Image.network(url,
-              webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  const Center(child: Icon(Icons.broken_image_outlined)));
-        },
-      );
+  Widget _networkPhoto(ClockPhoto photo) => DeferredImage(
+      identity: 'clock:${photo.recordId}',
+      builder: (_) => FutureBuilder<ApiResult<String>>(
+            future: ManagementService.anomalyPhotoViewUrl(photo.recordId,
+                variant: 'thumbnail'),
+            builder: (_, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2));
+              }
+              final url = snapshot.data?.data;
+              if (url == null) {
+                return const Center(child: Icon(Icons.broken_image_outlined));
+              }
+              return CachedAppImage(url: url, fit: BoxFit.cover);
+            },
+          ));
 
   Future<void> _showPhoto(ClockPhoto photo) async {
-    final url = await urls.putIfAbsent(
-        photo.recordId,
-        () async =>
-            (await ManagementService.anomalyPhotoViewUrl(photo.recordId)).data);
+    final url =
+        (await ManagementService.anomalyPhotoViewUrl(photo.recordId)).data;
     if (!mounted || url == null) return;
     showDialog<void>(
         context: context,

@@ -1,3 +1,4 @@
+import 'signed_image_urls.dart';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import '../core/models/api_result.dart';
@@ -30,9 +31,15 @@ class ConstructionLogService {
           .data);
   static Future<ApiResult<Map<String, dynamic>>> detail(int id) async =>
       _map((await _client.get('$_path/$id')).data);
-  static Future<ApiResult<String>> photoUrl(int id) async => ApiResult.fromJson(
-      (await _client.get('$_path/photos/$id/view-url')).data,
-      (v) => v as String);
+  static Future<ApiResult<String>> photoUrl(int id,
+          {String variant = 'original'}) =>
+      SignedImageUrls.get(
+          'construction:$id:$variant',
+          () async => ApiResult.fromJson(
+              (await _client.get('$_path/photos/$id/view-url',
+                      queryParameters: {'variant': variant}))
+                  .data,
+              (v) => v as String));
   static Future<ApiResult<Map<String, dynamic>>> summary(
           int projectId, String date) async =>
       _map((await _client.get('$_path/attendance-summary',

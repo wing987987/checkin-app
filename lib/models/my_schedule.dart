@@ -55,6 +55,9 @@ class ClockStatus {
 }
 
 class MySchedule {
+  final String? finalClockOutDeadline;
+  final bool secondment;
+  final String secondmentLabel;
   final bool fieldWork, tomorrowFieldWork;
   final String? fieldReason;
   final bool clockPaused;
@@ -87,7 +90,10 @@ class MySchedule {
   final bool extraShift;
   final List<MySchedule> extraSchedules;
   const MySchedule(
-      {this.allowOutsideClockWindow = false,
+      {this.finalClockOutDeadline,
+      this.secondment = false,
+      this.secondmentLabel = '',
+      this.allowOutsideClockWindow = false,
       this.fieldWork = false,
       this.tomorrowFieldWork = false,
       this.fieldReason,
@@ -128,20 +134,37 @@ class MySchedule {
 
   DateTime windowStart(ScheduleCheckpoint point) =>
       expectedAt(point).subtract(Duration(minutes: isClockIn(point) ? 30 : 5));
-  DateTime windowEnd(ScheduleCheckpoint point) =>
-      expectedAt(point).add(Duration(minutes: isClockIn(point) ? 5 : 30));
+  bool isFinalClockOut(ScheduleCheckpoint point) =>
+      !fieldWork && (point.code == 'end' || point.code == 'afternoon_out');
+
+  DateTime get overtimeDeadline {
+    final supplied = DateTime.tryParse(finalClockOutDeadline ?? '');
+    if (supplied != null) return supplied;
+    final date = DateTime.parse(attendanceDate);
+    return DateTime(
+        date.year, date.month, date.day + 1, shiftType == 'night' ? 12 : 0);
+  }
+
+  DateTime windowEnd(ScheduleCheckpoint point) => isFinalClockOut(point)
+      ? overtimeDeadline
+      : expectedAt(point).add(Duration(minutes: isClockIn(point) ? 5 : 30));
 
   bool canClockAt(DateTime now) =>
       !isPausedAt(now) &&
-      (allowOutsideClockWindow ||
-          checkpoints.any((point) =>
-              !records.any((r) =>
-                  r.checkpointId == point.id ||
-                  r.checkpointCode == point.code) &&
-              !now.isBefore(windowStart(point)) &&
-              !now.isAfter(windowEnd(point))));
+      checkpoints.any((point) =>
+          !records.any((r) =>
+              r.checkpointId == point.id || r.checkpointCode == point.code) &&
+          (isFinalClockOut(point)
+              ? now.isBefore(windowEnd(point)) &&
+                  (allowOutsideClockWindow || !now.isBefore(windowStart(point)))
+              : allowOutsideClockWindow ||
+                  (!now.isBefore(windowStart(point)) &&
+                      !now.isAfter(windowEnd(point)))));
 
   factory MySchedule.fromJson(Map<String, dynamic> json) => MySchedule(
+      finalClockOutDeadline: json['finalClockOutDeadline'] as String?,
+      secondment: json['secondment'] == true,
+      secondmentLabel: json['secondmentLabel'] as String? ?? '',
       fieldWork: json['fieldWork'] == true,
       tomorrowFieldWork: json['tomorrowFieldWork'] == true,
       fieldReason: json['fieldReason'] as String?,

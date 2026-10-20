@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'assignment_history_page.dart';
+import 'secondment_page.dart';
 
 import '../../models/checkin_project.dart';
 import '../../models/checkin_shift.dart';
@@ -62,6 +63,14 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text('${widget.project.name} · 用户管理'), actions: [
           IconButton(
+              tooltip: '临时借调 / 返回',
+              icon: const Icon(Icons.swap_horiz),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          SecondmentPage(project: widget.project)))),
+          IconButton(
               tooltip: '分配 / 转移记录',
               icon: const Icon(Icons.history),
               onPressed: () => Navigator.push(
@@ -117,6 +126,12 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                     if (value == 'promote') _promote(worker);
                     if (value == 'edit') _edit(worker);
                     if (value == 'transfer') _transfer(worker);
+                    if (value == 'secondment')
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => SecondmentPage(
+                                  project: widget.project, worker: worker)));
                     if (value == 'reset') _reset(worker);
                     if (value == 'field') _fieldWork(worker);
                     if (value == 'fieldHistory') _fieldHistory(worker);
@@ -129,7 +144,9 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                     const PopupMenuItem(
                         value: 'history', child: Text('分配 / 转移记录')),
                     PopupMenuItem(value: 'edit', child: Text('编辑用户')),
-                    PopupMenuItem(value: 'transfer', child: Text('项目转移')),
+                    PopupMenuItem(
+                        value: 'secondment', child: Text('临时借调 / 返回')),
+                    PopupMenuItem(value: 'transfer', child: Text('长期项目转移')),
                     PopupMenuItem(value: 'reset', child: Text('重置密码')),
                     PopupMenuItem(value: 'field', child: Text('外勤安排 / 取消')),
                     PopupMenuItem(value: 'fieldHistory', child: Text('外勤操作记录')),

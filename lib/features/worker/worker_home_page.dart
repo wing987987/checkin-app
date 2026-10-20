@@ -13,7 +13,6 @@ import 'package:camera/camera.dart';
 import 'worker_report_page.dart';
 import '../../core/widgets/test_account_switcher.dart';
 import '../../core/models/api_result.dart';
-import '../../core/config/env_config.dart';
 import '../../core/widgets/zoomable_network_image.dart';
 import '../../core/widgets/user_account_menu.dart';
 import '../../core/widgets/dialog_scroll_view.dart';
@@ -183,10 +182,13 @@ class _WorkerHomePageState extends State<WorkerHomePage>
           _scheduleProgressCard(value),
           if (value.extraSchedules.isNotEmpty) ...[
             ...value.extraSchedules.map(_scheduleProgressCard),
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('附加班次未打卡不会产生缺勤；开始打卡后，不完整班次需要主管确认。',
-                  style: TextStyle(color: Colors.grey)),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                  value.secondment
+                      ? '按上午、下午分别在对应项目打卡；每个项目只检查分配的时段。'
+                      : '附加班次未打卡不会产生缺勤；开始打卡后，不完整班次需要主管确认。',
+                  style: const TextStyle(color: Colors.grey)),
             ),
           ],
           const SizedBox(height: 20),
@@ -226,24 +228,6 @@ class _WorkerHomePageState extends State<WorkerHomePage>
                     : const Icon(Icons.camera_alt),
                 label:
                     Text(clocking ? (clockingStatus ?? '正在提交…') : '定位并拍照打卡')),
-          if (!value.fieldWork &&
-              (EnvConfig.instance.showTestFeatures ||
-                  value.overtimeAvailable)) ...[
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: clocking || value.isPausedAt(DateTime.now())
-                  ? null
-                  : () => _clock(overtime: true),
-              icon: const Icon(Icons.more_time),
-              label: Text(_overtimeButtonText(value)),
-            ),
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('首次为加班开始，后续每次打卡都会更新加班结束时间',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey)),
-            ),
-          ],
         ]));
   }
 
@@ -254,12 +238,48 @@ class _WorkerHomePageState extends State<WorkerHomePage>
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(
-                '${value.fieldWork ? '自然日考勤' : value.extraShift ? '附加班次' : '标准班次'} · ${value.shiftName}',
+                '${value.secondment ? value.secondmentLabel : value.fieldWork ? '自然日考勤' : value.extraShift ? '附加班次' : '标准班次'} · ${value.shiftName}',
                 style:
                     const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             Text(
                 '${value.attendanceDate}  ${value.startTime}–${value.shiftType == 'night' ? '次日 ' : ''}${value.endTime} · ${value.records.where((r) => value.checkpoints.any((p) => p.id == r.checkpointId)).length}/${value.checkpoints.length} 次'),
             const SizedBox(height: 8),
+            if (value.checkpoints.any(value.isFinalClockOut)) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.more_time,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                            const Text('延时下班 · 自动计加班',
+                                style: TextStyle(fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 4),
+                            Text(
+                                '最后一次下班请在${value.shiftType == 'night' ? '次日12:00' : '当天24:00'}前打卡。超过标准下班每满30分钟计0.5小时，不满不计。',
+                                style: Theme.of(context).textTheme.bodySmall),
+                            const SizedBox(height: 4),
+                            Text('持续工作到下班时直接打卡，无需另点加班开始。',
+                                style: Theme.of(context).textTheme.bodySmall),
+                          ])),
+                    ]),
+              ),
+            ],
             ...value.checkpoints.map((point) {
               final matches =
                   value.records.where((r) => r.checkpointId == point.id);
@@ -280,7 +300,7 @@ class _WorkerHomePageState extends State<WorkerHomePage>
                             : AppColors.warning),
                 title: Text(point.name),
                 subtitle: Text(
-                    '标准时间 ${point.expectedTime}${point.dayOffset == 1 ? '（次日）' : ''}\n允许打卡 ${DateFormat('MM-dd HH:mm').format(value.windowStart(point))}–${DateFormat('MM-dd HH:mm').format(value.windowEnd(point))}'),
+                    '标准时间 ${point.expectedTime}${point.dayOffset == 1 ? '（次日）' : ''}\n允许打卡 ${DateFormat('MM-dd HH:mm').format(value.windowStart(point))}–${DateFormat('MM-dd HH:mm').format(value.windowEnd(point))}${value.isFinalClockOut(point) ? '前' : ''}'),
                 trailing: Text(record == null
                     ? '未打卡'
                     : record.anomalyType == null
@@ -291,6 +311,24 @@ class _WorkerHomePageState extends State<WorkerHomePage>
                     : () => _showClockDetail(point, record),
               );
             }),
+            if (!value.fieldWork && value.overtimeAvailable) ...[
+              const Divider(height: 24),
+              SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: clocking || value.isPausedAt(DateTime.now())
+                        ? null
+                        : () => _clock(overtime: true, target: value),
+                    icon: const Icon(Icons.more_time),
+                    label: Text(_overtimeButtonText(value)),
+                  )),
+              const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text(
+                    '已下班后再次工作：先记录加班开始，结束时再打卡。重叠时间不会重复计算。',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  )),
+            ],
           ]),
         ),
       );
@@ -324,7 +362,7 @@ class _WorkerHomePageState extends State<WorkerHomePage>
                         ? Icons.add_circle_outline
                         : Icons.schedule),
                     title: Text(
-                        '${shift.extraShift ? '附加班次' : '标准班次'} · ${shift.shiftName}'),
+                        '${shift.secondment ? shift.secondmentLabel : shift.extraShift ? '附加班次' : '标准班次'} · ${shift.shiftName}'),
                     subtitle: Text(
                         '${shift.attendanceDate}  ${shift.startTime}–${shift.shiftType == 'night' ? '次日 ' : ''}${shift.endTime}  ·  已打卡 $completed/${shift.checkpoints.length} 次'),
                     trailing: const Icon(Icons.chevron_right),
@@ -511,7 +549,12 @@ class _WorkerHomePageState extends State<WorkerHomePage>
 
   String _overtimeButtonText(MySchedule value) {
     final count = _overtimeClockCount(value);
-    if (count == 0) return '加班打卡（开始）';
+    if (count == 0) {
+      return value.records.any((r) =>
+              r.checkpointCode == 'end' || r.checkpointCode == 'afternoon_out')
+          ? '已下班，再次加班'
+          : '单独加班 · 记录开始';
+    }
     return '加班打卡（更新结束时间）';
   }
 

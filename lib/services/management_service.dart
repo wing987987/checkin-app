@@ -1,3 +1,4 @@
+import 'signed_image_urls.dart';
 import '../core/models/api_result.dart';
 import '../core/network/dio_client.dart';
 import '../models/checkin_project.dart';
@@ -306,6 +307,30 @@ class ManagementService {
     return ApiResult.fromJson(response.data, (value) => value);
   }
 
+  static Future<ApiResult<List<Map<String, dynamic>>>> secondments(
+      int projectId) async {
+    final response =
+        await _client.get('/api/ck/projects/$projectId/secondments');
+    return ApiResult.fromJson(
+        response.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
+  static Future<ApiResult<dynamic>> startSecondment(
+      int workerId, Map<String, dynamic> data) async {
+    final response =
+        await _client.post('/api/ck/workers/$workerId/secondments', data: data);
+    return ApiResult.fromJson(response.data, (data) => data);
+  }
+
+  static Future<ApiResult<dynamic>> endSecondment(
+      int id, Map<String, dynamic> data) async {
+    final response =
+        await _client.post('/api/ck/secondments/$id/end', data: data);
+    return ApiResult.fromJson(response.data, (data) => data);
+  }
+
   static Future<ApiResult<dynamic>> transferWorker(
       int workerId, int projectId) async {
     final response =
@@ -360,11 +385,14 @@ class ManagementService {
             (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
   }
 
-  static Future<ApiResult<String>> anomalyPhotoViewUrl(int recordId) async {
-    final response = await _client
-        .get('/api/ck/files/clock-photo/$recordId/supervisor-view-url');
-    return ApiResult.fromJson(response.data, (data) => data as String);
-  }
+  static Future<ApiResult<String>> anomalyPhotoViewUrl(int recordId,
+          {String variant = 'original'}) =>
+      SignedImageUrls.get('anomalyPhotoViewUrl:$recordId:$variant', () async {
+        final response = await DioClient.instance.get(
+            '/api/ck/files/clock-photo/$recordId/supervisor-view-url',
+            queryParameters: {'variant': variant});
+        return ApiResult.fromJson(response.data, (data) => data as String);
+      });
 
   static Future<ApiResult<List<ClockPhoto>>> clockPhotos(
       int projectId, String month) async {

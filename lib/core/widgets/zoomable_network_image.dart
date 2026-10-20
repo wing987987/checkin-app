@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'cached_app_image.dart';
 
 /// 支持双指缩放和拖动查看的网络图片。
 class ZoomableNetworkImage extends StatelessWidget {
@@ -27,16 +28,11 @@ class ZoomableNetworkImage extends StatelessWidget {
           minScale: 1,
           maxScale: 5,
           child: Center(
-            child: Image.network(
-              url,
-              webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+            child: CachedAppImage(
+              url: url,
               width: imageWidth,
               height: imageHeight,
               fit: BoxFit.contain,
-              loadingBuilder: (_, child, progress) => progress == null
-                  ? child
-                  : const Center(child: CircularProgressIndicator()),
-              errorBuilder: (_, __, ___) => const Center(child: Text('照片加载失败')),
             ),
           ),
         ),

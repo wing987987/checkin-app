@@ -1,3 +1,4 @@
+import 'signed_image_urls.dart';
 import '../core/models/api_result.dart';
 import '../core/network/dio_client.dart';
 import '../models/my_schedule.dart';
@@ -60,11 +61,14 @@ class WorkerService {
         response.data, (value) => Map<String, dynamic>.from(value));
   }
 
-  static Future<ApiResult<String>> clockPhotoViewUrl(int recordId) async {
-    final response = await DioClient.instance
-        .get('/api/ck/files/clock-photo/$recordId/view-url');
-    return ApiResult.fromJson(response.data, (data) => data as String);
-  }
+  static Future<ApiResult<String>> clockPhotoViewUrl(int recordId,
+          {String variant = 'original'}) =>
+      SignedImageUrls.get('clockPhotoViewUrl:$recordId:$variant', () async {
+        final response = await DioClient.instance.get(
+            '/api/ck/files/clock-photo/$recordId/view-url',
+            queryParameters: {'variant': variant});
+        return ApiResult.fromJson(response.data, (data) => data as String);
+      });
 
   static Future<ApiResult<WorkerMonthReport>> monthReport(String month) async {
     final response = await DioClient.instance

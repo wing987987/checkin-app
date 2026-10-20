@@ -1,3 +1,6 @@
+import '../../core/widgets/deferred_image.dart';
+import '../../core/widgets/cached_app_image.dart';
+import '../../core/models/api_result.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -680,24 +683,38 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
           padding: const EdgeInsets.all(8),
           child: Row(children: [
             InkWell(
-                onTap: p.url == null
+                onTap: p.id == null
                     ? null
-                    : () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => Scaffold(
-                                appBar:
-                                    AppBar(title: Text('施工图片 ${index + 1}')),
-                                body: ZoomableNetworkImage(url: p.url!)))),
+                    : () async {
+                        final result =
+                            await ConstructionLogService.photoUrl(p.id!);
+                        if (!mounted || result.data == null) return;
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => Scaffold(
+                                    appBar: AppBar(
+                                        title: Text('施工图片 ${index + 1}')),
+                                    body: ZoomableNetworkImage(
+                                        url: result.data!))));
+                      },
                 child: SizedBox(
                     width: 96,
                     height: 80,
                     child: p.bytes != null
                         ? Image.memory(p.bytes!, fit: BoxFit.cover)
-                        : Image.network(p.url!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, e, s) =>
-                                const Icon(Icons.broken_image_outlined)))),
+                        : DeferredImage(
+                            identity: 'construction:${p.id}',
+                            builder: (_) => FutureBuilder<ApiResult<String>>(
+                                future: ConstructionLogService.photoUrl(p.id!,
+                                    variant: 'thumbnail'),
+                                builder: (_, snapshot) => snapshot.data?.data !=
+                                        null
+                                    ? CachedAppImage(
+                                        url: snapshot.data!.data!,
+                                        fit: BoxFit.cover)
+                                    : const Center(
+                                        child: Icon(Icons.image_outlined)))))),
             const SizedBox(width: 8),
             Expanded(
                 child: Column(

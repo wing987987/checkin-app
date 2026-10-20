@@ -44,6 +44,7 @@ class AttendanceClockDetail {
 }
 
 class DailyAttendance {
+  final String shiftType;
   final int? noWorkRequestId;
   final String noWorkStatus;
   final bool canApplyNoWork;
@@ -57,6 +58,7 @@ class DailyAttendance {
   final List<AttendanceClockDetail> clocks;
   const DailyAttendance(
       {required this.workerId,
+      this.shiftType = '',
       this.noWorkRequestId,
       this.noWorkStatus = '',
       this.canApplyNoWork = false,
@@ -77,6 +79,7 @@ class DailyAttendance {
       required this.statusMessage,
       required this.clocks});
   factory DailyAttendance.fromJson(Map<String, dynamic> j) => DailyAttendance(
+      shiftType: j['shiftType'] as String? ?? '',
       noWorkRequestId: j['noWorkRequestId'] as int?,
       noWorkStatus: j['noWorkStatus'] as String? ?? '',
       canApplyNoWork: j['canApplyNoWork'] == true,
