@@ -39,6 +39,8 @@ foreach ($relativePath in @('index.html', 'flutter_bootstrap.js', 'main.dart.js'
     }
 }
 
+& (Join-Path $PSScriptRoot 'verify-web-plugins.ps1') -WebRoot $source
+
 Write-Output "Uploading $Environment Web files to $SshTarget`:$remoteDirectory"
 & ssh -i $SshKeyPath -p $SshPort $SshTarget "mkdir -p '$remoteDirectory'"
 if ($LASTEXITCODE -ne 0) { throw 'Could not create the remote Web directory.' }

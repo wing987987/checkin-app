@@ -9,6 +9,8 @@ if not exist "tool\web-deploy.local.ps1" (
 echo ========================================
 echo   Build Check-in Web - TEST
 echo ========================================
+powershell -NoProfile -ExecutionPolicy Bypass -File "tool\prepare-web-build.ps1"
+if errorlevel 1 exit /b 1
 call flutter build web --release --dart-define=ENV=test --base-href "/apptest/checkin/"
 if errorlevel 1 (
   echo Web test build failed.

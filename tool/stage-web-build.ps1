@@ -22,6 +22,8 @@ foreach ($relativePath in @('index.html', 'flutter_bootstrap.js', 'main.dart.js'
     }
 }
 
+& (Join-Path $PSScriptRoot 'verify-web-plugins.ps1') -WebRoot $source
+
 if (Test-Path -LiteralPath $target) {
     if ((Get-Item -LiteralPath $target -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
         throw 'Web output directory must not be a symbolic link.'
