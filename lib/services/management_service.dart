@@ -118,6 +118,62 @@ class ManagementService {
     return ApiResult.fromJson(response.data, (data) => data);
   }
 
+  static Future<ApiResult<List<Map<String, dynamic>>>> projectCatalog() async {
+    final response = await _client.get('/api/ck/projects/catalog');
+    return ApiResult.fromJson(
+        response.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
+  static Future<ApiResult<dynamic>> applyProject(int projectId) async {
+    final response =
+        await _client.post('/api/ck/projects/$projectId/join-request');
+    return ApiResult.fromJson(response.data, (value) => value);
+  }
+
+  static Future<ApiResult<List<Map<String, dynamic>>>> projectRequests() async {
+    final response = await _client.get('/api/ck/project-requests');
+    return ApiResult.fromJson(
+        response.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
+  static Future<ApiResult<int>> projectRequestCount() async {
+    final response =
+        await _client.get('/api/ck/project-requests/pending-count');
+    return ApiResult.fromJson(response.data, (data) => (data as num).toInt());
+  }
+
+  static Future<ApiResult<dynamic>> decideProjectRequest(
+      int id, String action) async {
+    final response = await _client.post('/api/ck/project-requests/$id/decision',
+        data: {'action': action});
+    return ApiResult.fromJson(response.data, (value) => value);
+  }
+
+  static Future<ApiResult<dynamic>> correctDayShift(
+      Map<String, dynamic> data) async {
+    final response =
+        await _client.post('/api/ck/attendance/day-shift', data: data);
+    return ApiResult.fromJson(response.data, (value) => value);
+  }
+
+  static Future<ApiResult<List<Map<String, dynamic>>>> originalShiftRecords(
+      int workerId, int projectId, String date) async {
+    final response = await _client
+        .get('/api/ck/attendance/day-shift/original-records', queryParameters: {
+      'workerId': workerId,
+      'projectId': projectId,
+      'attendanceDate': date
+    });
+    return ApiResult.fromJson(
+        response.data,
+        (data) =>
+            (data as List).map((e) => Map<String, dynamic>.from(e)).toList());
+  }
+
   static Future<ApiResult<List<CheckinSupervisor>>> supervisors() async {
     final response = await _client.get('/api/ck/supervisors');
     return ApiResult.fromJson(

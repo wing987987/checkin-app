@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/attendance_report.dart';
 import 'continuous_supplement_dialog.dart';
+import 'day_shift_correction_dialog.dart';
 import '../../models/checkin_project.dart';
 import '../../core/widgets/zoomable_network_image.dart';
 import '../../services/management_service.dart';
@@ -341,7 +342,24 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                     child: Text(day.statusMessage,
                         style: const TextStyle(color: AppColors.textSecondary)),
                   ),
+                if (day.shiftCorrectionReason.isNotEmpty) ...[
+                  Text(
+                      '已更正班次：${day.originalShiftName} → ${day.shiftName}\n原因：${day.shiftCorrectionReason}',
+                      style: const TextStyle(color: AppColors.primary)),
+                  TextButton(
+                      onPressed: () => _originalShiftRecords(day),
+                      child: const Text('查看原班次打卡记录')),
+                ],
                 ...day.clocks.map((clock) => _clockCard(day, clock)),
+                if (day.workerId !=
+                        context.read<AuthProvider>().currentUser?.id &&
+                    day.shiftId > 0)
+                  Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                          onPressed: () => _correctDayShift(day),
+                          icon: const Icon(Icons.edit_calendar_outlined),
+                          label: const Text('更正当天班次'))),
                 if (day.workerId !=
                         context.read<AuthProvider>().currentUser?.id &&
                     day.status != 'in_progress' &&
@@ -607,6 +625,77 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _correctDayShift(DailyAttendance day) async {
+    try {
+      final choices = await ManagementService.shifts(day.projectId);
+      if (!mounted) return;
+      if (!choices.isSuccess) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(choices.message)));
+        return;
+      }
+      if (!(choices.data ?? [])
+          .any((s) => s.id != day.shiftId && s.status == 1)) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('当前项目没有其他有效班次，请先配置班次')));
+        return;
+      }
+      final saved = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) =>
+              DayShiftCorrectionDialog(day: day, shifts: choices.data!));
+      if (saved == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('当天班次已更正，请按新班次补卡或确认工时、工数')));
+        await _load();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('班次加载失败，请重试')));
+      }
+    }
+  }
+
+  Future<void> _originalShiftRecords(DailyAttendance day) async {
+    try {
+      final result = await ManagementService.originalShiftRecords(
+          day.workerId, day.projectId, day.date);
+      if (!mounted) return;
+      if (!result.isSuccess) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(result.message)));
+        return;
+      }
+      await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+                  title: const Text('原班次打卡记录（不计工）'),
+                  content: SizedBox(
+                      width: double.maxFinite,
+                      child: SingleChildScrollView(
+                          child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        if ((result.data ?? []).isEmpty)
+                          const Text('原班次没有打卡记录'),
+                        ...(result.data ?? []).map((r) => ListTile(
+                            title: Text('${r['checkpointName']}'),
+                            subtitle: Text(
+                                '${r['clockTime']}\n${r['anomalyMessage'] ?? ''}')))
+                      ]))),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('关闭'))
+                  ]));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('原记录加载失败，请重试')));
+      }
+    }
   }
 
   Future<void> _supplementMissing(

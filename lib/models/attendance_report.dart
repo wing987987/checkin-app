@@ -44,6 +44,7 @@ class AttendanceClockDetail {
 }
 
 class DailyAttendance {
+  final String shiftCorrectionReason, originalShiftName;
   final String shiftType;
   final int? noWorkRequestId;
   final String noWorkStatus;
@@ -57,7 +58,9 @@ class DailyAttendance {
   final String statusMessage;
   final List<AttendanceClockDetail> clocks;
   const DailyAttendance(
-      {required this.workerId,
+      {this.shiftCorrectionReason = '',
+      this.originalShiftName = '',
+      required this.workerId,
       this.shiftType = '',
       this.noWorkRequestId,
       this.noWorkStatus = '',
@@ -79,6 +82,8 @@ class DailyAttendance {
       required this.statusMessage,
       required this.clocks});
   factory DailyAttendance.fromJson(Map<String, dynamic> j) => DailyAttendance(
+      shiftCorrectionReason: j['shiftCorrectionReason'] as String? ?? '',
+      originalShiftName: j['originalShiftName'] as String? ?? '',
       shiftType: j['shiftType'] as String? ?? '',
       noWorkRequestId: j['noWorkRequestId'] as int?,
       noWorkStatus: j['noWorkStatus'] as String? ?? '',
