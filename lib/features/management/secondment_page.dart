@@ -375,7 +375,11 @@ class _SecondmentDialogState extends State<SecondmentDialog> {
                               ? '${DateFormat('yyyy-MM-dd').format(_date)} ${_half == 0 ? '上午' : '下午'}起恢复 ${widget.loan!['source_project_name']} / ${widget.loan!['source_team_name']} / ${widget.loan!['source_shift_name']}。此前借调考勤保留。\n取消未开始的借调，可选择借调开始时段返回。'
                               : '${DateFormat('yyyy-MM-dd').format(_date)} ${_half == 0 ? '上午' : '下午'}起在目标项目考勤，持续至手动结束借调。常驻项目仍为${widget.project.name}。'),
                           const SizedBox(height: 8),
-                          const Text('变更时段已有打卡或人工处理记录时，不能直接覆盖。'),
+                          Text(!_ending &&
+                                  _half == 0 &&
+                                  DateUtils.isSameDay(_date, DateTime.now())
+                              ? '当天上午开始借调：原项目已打的上午上班卡将作废并保留记录，不再计工。若错过目标项目上班打卡时间，请由目标项目主管补卡。其他打卡或人工处理记录仍不能覆盖。'
+                              : '变更时段已有打卡或人工处理记录时，不能直接覆盖。'),
                           if (_error != null)
                             Text(_error!,
                                 style: const TextStyle(color: Colors.red)),
