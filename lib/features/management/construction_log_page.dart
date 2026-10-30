@@ -16,6 +16,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/construction_log_service.dart';
 import '../../services/log_reminder_service.dart';
 import '../../core/utils/watermark_utils.dart';
+import '../../core/utils/log_photo_picker.dart';
 import '../../core/widgets/zoomable_network_image.dart';
 import 'anomaly_list_page.dart';
 import 'no_work_requests_page.dart';
@@ -276,31 +277,32 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
   Future<void> _addPhotos(ImageSource source) async {
     if (_photos.length >= 6 || _uploading || _saving) return;
     setState(() => _preparing = true);
+    var stage = '获取照片';
     try {
-      final picker = ImagePicker();
-      final List<XFile> files;
-      if (source == ImageSource.camera) {
-        final photo = await picker.pickImage(
-            source: source, maxWidth: 2200, maxHeight: 2200);
-        files = photo == null ? [] : [photo];
-      } else {
-        files = await picker.pickMultiImage(maxWidth: 2200, maxHeight: 2200);
-      }
+      final files =
+          await pickLogPhotos(source).timeout(const Duration(minutes: 3));
       if (!mounted) return;
+      if (files.isEmpty) {
+        _message('未获取到照片；如已拍摄，请重试或从相册添加');
+        return;
+      }
       final remaining = 6 - _photos.length;
       if (files.length > remaining) _message('最多6张，本次仅添加前$remaining张');
       String location = '拍摄位置：未获取';
       if (source == ImageSource.camera && files.isNotEmpty) {
         try {
-          var permission = await Geolocator.checkPermission();
+          var permission = await Geolocator.checkPermission()
+              .timeout(const Duration(seconds: 2));
           if (permission == LocationPermission.denied) {
-            permission = await Geolocator.requestPermission();
+            permission = await Geolocator.requestPermission()
+                .timeout(const Duration(seconds: 8));
           }
           if (permission == LocationPermission.whileInUse ||
               permission == LocationPermission.always) {
             final p = await Geolocator.getCurrentPosition(
-                locationSettings:
-                    const LocationSettings(timeLimit: Duration(seconds: 8)));
+                    locationSettings:
+                        const LocationSettings(timeLimit: Duration(seconds: 8)))
+                .timeout(const Duration(seconds: 8));
             location =
                 '拍摄位置：${p.latitude.toStringAsFixed(5)}, ${p.longitude.toStringAsFixed(5)}';
           }
@@ -315,8 +317,11 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
         final now = DateTime.now().toUtc().add(const Duration(hours: 8));
         final photo = _LogPhoto()
           ..source = source == ImageSource.camera ? 'camera' : 'gallery';
-        final result =
-            await WatermarkUtils.addClockWatermark(await file.readAsBytes(), [
+        stage = '读取照片';
+        final bytes =
+            await file.readAsBytes().timeout(const Duration(seconds: 15));
+        stage = '添加水印';
+        final result = await WatermarkUtils.addClockWatermark(bytes, [
           '施工日志 · ${widget.project.name}',
           '主管：${user.realName ?? user.username}',
           '日志日期：$_date',
@@ -333,8 +338,11 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
         });
         await _upload(photo);
       }
-    } catch (_) {
-      _message('添加图片失败，请重试');
+    } on TimeoutException {
+      _message('$stage超时，请重试拍照或从相册添加');
+    } catch (error, stack) {
+      debugPrint('施工日志$stage失败：$error\n$stack');
+      _message('$stage失败：${error.toString().replaceFirst('Exception: ', '')}');
     } finally {
       if (mounted) setState(() => _preparing = false);
     }

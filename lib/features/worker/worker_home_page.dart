@@ -628,8 +628,8 @@ class _WorkerHomePageState extends State<WorkerHomePage>
       sourcePhoto = photo;
       final now = DateTime.now();
       setState(() => clockingStatus = '正在添加水印…');
-      final watermarked =
-          await WatermarkUtils.addClockWatermark(await photo.readAsBytes(), [
+      final watermarked = await WatermarkUtils.addClockWatermark(
+          await photo.readAsBytes().timeout(const Duration(seconds: 15)), [
         value.fieldWork
             ? fieldAction == 'end'
                 ? '外勤下班'

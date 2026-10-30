@@ -29,11 +29,30 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
   List<CheckinProject> projects = const [];
   List<CheckinJobType> jobTypes = const [];
   bool loading = true;
+  final _searchController = TextEditingController();
+  String _search = '';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<WorkerAssignment> get _filteredWorkers {
+    final query = _search.trim().toLowerCase();
+    if (query.isEmpty) return workers;
+    return workers
+        .where((worker) =>
+            worker.realName.toLowerCase().contains(query) ||
+            (worker.phone ?? '').contains(query) ||
+            worker.username.toLowerCase().contains(query))
+        .toList();
   }
 
   Future<void> _load() async {
@@ -83,20 +102,52 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
             onPressed: teams.isEmpty ? null : () => _edit(),
             icon: const Icon(Icons.person_add_alt_1),
             label: const Text('新增用户')),
-        body: loading
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _load,
-                child: workers.isEmpty
-                    ? ListView(children: const [
-                        SizedBox(height: 180),
-                        Center(child: Text('该项目暂无工人'))
-                      ])
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-                        itemCount: workers.length,
-                        itemBuilder: (_, index) => _workerCard(workers[index])),
+        body: Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: '搜索姓名或手机号',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _search.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '清除搜索',
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _search = '');
+                        },
+                      ),
               ),
+              onChanged: (value) => setState(() => _search = value),
+            ),
+          ),
+          Expanded(
+              child: loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: _filteredWorkers.isEmpty
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: [
+                                  const SizedBox(height: 180),
+                                  Center(
+                                      child: Text(workers.isEmpty
+                                          ? '该项目暂无工人'
+                                          : '没有找到匹配的用户'))
+                                ])
+                          : ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding:
+                                  const EdgeInsets.fromLTRB(12, 12, 12, 88),
+                              itemCount: _filteredWorkers.length,
+                              itemBuilder: (_, index) =>
+                                  _workerCard(_filteredWorkers[index])),
+                    )),
+        ]),
       );
 
   Widget _workerCard(WorkerAssignment worker) => Card(
