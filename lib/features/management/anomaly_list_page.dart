@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import '../../models/attendance_anomaly.dart';
 import '../../models/attendance_report.dart';
 import 'no_work_requests_page.dart';
+import 'anomaly_reason_dialog.dart';
 import 'project_report_page.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -112,6 +113,7 @@ class _ManualHoursDialogState extends State<ManualHoursDialog> {
           width: double.maxFinite,
           child: DialogScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
+              AnomalyReasonPreview(item: widget.item),
               TextField(
                 controller: _hours,
                 keyboardType:
@@ -401,6 +403,10 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                       fontSize: 13, color: AppColors.textSecondary)),
             ),
             const SizedBox(height: 8),
+            TextButton.icon(
+                onPressed: () => showAnomalyReasons(context, item),
+                icon: const Icon(Icons.edit_note),
+                label: const Text('填写 / 查看现场异常原因')),
             Row(children: [
               Icon(Icons.arrow_forward, size: 16, color: color),
               const SizedBox(width: 4),
@@ -505,6 +511,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                         Text('${item.workerName} · ${item.attendanceDate}',
                             style: const TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.w600)),
+                        AnomalyReasonPreview(item: item),
                         const SizedBox(height: 12),
                         const Text('保存后继续处理此人当天的下一项异常，可随时取消。\n当天全部打卡记录',
                             style: TextStyle(fontWeight: FontWeight.w600)),
@@ -707,6 +714,7 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${item.attendanceDate} 当天全部打卡记录\n保存后继续处理此人当天的下一项异常，可随时退出。',
                   style: const TextStyle(fontWeight: FontWeight.w600)),
+              AnomalyReasonPreview(item: item),
               const SizedBox(height: 8),
               ...days.expand((day) => [
                     Text('${day.teamName} / ${day.shiftName}',

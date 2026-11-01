@@ -10,6 +10,7 @@ import '../../models/checkin_team.dart';
 import '../../models/worker_assignment.dart';
 import '../../models/checkin_job_type.dart';
 import '../../services/management_service.dart';
+import '../../services/anomaly_reason_service.dart';
 import '../../core/widgets/dialog_scroll_view.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -82,6 +83,10 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text('${widget.project.name} · 用户管理'), actions: [
           IconButton(
+              tooltip: '设置班组带工',
+              icon: const Icon(Icons.groups),
+              onPressed: loading ? null : _manageForemen),
+          IconButton(
               tooltip: '临时借调 / 返回',
               icon: const Icon(Icons.swap_horiz),
               onPressed: () => Navigator.push(
@@ -149,6 +154,74 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                     )),
         ]),
       );
+
+  Future<void> _manageForemen() async {
+    try {
+      final data = await AnomalyReasonService.foremen(widget.project.id);
+      if (!mounted) return;
+      await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => SimpleDialog(
+                title: const Text('设置班组带工'),
+                children: data
+                    .map((team) => ListTile(
+                          title: Text('${team['teamName']}'),
+                          subtitle: Text('当前带工：${team['workerName'] ?? '未设置'}'),
+                          trailing: const Icon(Icons.edit),
+                          onTap: () async {
+                            Navigator.pop(dialogContext);
+                            final candidates = workers
+                                .where((w) =>
+                                    w.teamId == team['teamId'] &&
+                                    w.role == 'worker' &&
+                                    w.status == 1)
+                                .toList();
+                            final selected = await showDialog<int>(
+                                context: context,
+                                builder: (ctx) => SimpleDialog(
+                                        title:
+                                            Text('${team['teamName']} · 选择带工'),
+                                        children: [
+                                          SimpleDialogOption(
+                                              onPressed: () =>
+                                                  Navigator.pop(ctx, -1),
+                                              child: const Text('取消班组带工')),
+                                          for (final worker in candidates)
+                                            SimpleDialogOption(
+                                                onPressed: () => Navigator.pop(
+                                                    ctx, worker.workerId),
+                                                child: Text(
+                                                    worker.realName.isEmpty
+                                                        ? worker.username
+                                                        : worker.realName)),
+                                          if (candidates.isEmpty)
+                                            const Padding(
+                                                padding: EdgeInsets.all(16),
+                                                child: Text('暂无可设置的本班组工人')),
+                                        ]));
+                            if (selected == null) return;
+                            try {
+                              await AnomalyReasonService.setForeman(
+                                  team['teamId'] as int,
+                                  selected == -1 ? null : selected);
+                              if (mounted)
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('班组带工已更新')));
+                            } catch (e) {
+                              if (mounted)
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('设置失败：$e')));
+                            }
+                          },
+                        ))
+                    .toList(),
+              ));
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('加载失败：$e')));
+    }
+  }
 
   Widget _workerCard(WorkerAssignment worker) => Card(
           child: Column(children: [
