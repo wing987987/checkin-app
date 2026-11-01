@@ -3,10 +3,17 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import '../core/models/api_result.dart';
 import '../core/network/dio_client.dart';
+import '../models/checkin_project.dart';
 
 class ConstructionLogService {
   static final _client = DioClient.instance;
   static const _path = '/api/ck/construction-logs';
+  static Future<ApiResult<List<CheckinProject>>> availableProjects() async =>
+      ApiResult.fromJson(
+          (await _client.get('$_path/projects')).data,
+          (v) => (v as List)
+              .map((p) => CheckinProject.fromJson(Map<String, dynamic>.from(p)))
+              .toList());
   static ApiResult<Map<String, dynamic>> _map(dynamic data) =>
       ApiResult.fromJson(data, (v) => Map<String, dynamic>.from(v));
 

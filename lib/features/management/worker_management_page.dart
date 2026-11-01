@@ -83,7 +83,7 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text('${widget.project.name} · 用户管理'), actions: [
           IconButton(
-              tooltip: '设置班组带工',
+              tooltip: '设置班组长',
               icon: const Icon(Icons.groups),
               onPressed: loading ? null : _manageForemen),
           IconButton(
@@ -162,30 +162,33 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
       await showDialog<void>(
           context: context,
           builder: (dialogContext) => SimpleDialog(
-                title: const Text('设置班组带工'),
+                title: const Text('按工种设置班组长'),
                 children: data
                     .map((team) => ListTile(
-                          title: Text('${team['teamName']}'),
-                          subtitle: Text('当前带工：${team['workerName'] ?? '未设置'}'),
+                          title: Text(
+                              '${team['teamName']} · ${team['jobTypeName']}'),
+                          subtitle:
+                              Text('当前班组长：${team['workerName'] ?? '未设置'}'),
                           trailing: const Icon(Icons.edit),
                           onTap: () async {
                             Navigator.pop(dialogContext);
                             final candidates = workers
                                 .where((w) =>
                                     w.teamId == team['teamId'] &&
+                                    w.jobType == team['jobTypeName'] &&
                                     w.role == 'worker' &&
                                     w.status == 1)
                                 .toList();
                             final selected = await showDialog<int>(
                                 context: context,
                                 builder: (ctx) => SimpleDialog(
-                                        title:
-                                            Text('${team['teamName']} · 选择带工'),
+                                        title: Text(
+                                            '${team['teamName']} · ${team['jobTypeName']}班组长'),
                                         children: [
                                           SimpleDialogOption(
                                               onPressed: () =>
                                                   Navigator.pop(ctx, -1),
-                                              child: const Text('取消班组带工')),
+                                              child: const Text('取消班组长')),
                                           for (final worker in candidates)
                                             SimpleDialogOption(
                                                 onPressed: () => Navigator.pop(
@@ -197,16 +200,17 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                                           if (candidates.isEmpty)
                                             const Padding(
                                                 padding: EdgeInsets.all(16),
-                                                child: Text('暂无可设置的本班组工人')),
+                                                child: Text('暂无本班组、该工种的在用工人')),
                                         ]));
                             if (selected == null) return;
                             try {
                               await AnomalyReasonService.setForeman(
                                   team['teamId'] as int,
+                                  team['jobTypeId'] as int,
                                   selected == -1 ? null : selected);
                               if (mounted)
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('班组带工已更新')));
+                                    const SnackBar(content: Text('班组长已更新')));
                             } catch (e) {
                               if (mounted)
                                 ScaffoldMessenger.of(context).showSnackBar(

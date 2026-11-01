@@ -53,12 +53,14 @@ class _ForemanAnomaliesPageState extends State<ForemanAnomaliesPage> {
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(padding: const EdgeInsets.all(16), children: [
-                const Text('班组带工可填写现场异常原因，由主管审批处理。'),
+                const Text('班组长仅可填写本班组、负责工种的异常原因，由主管审批处理。'),
+                for (final team in _teams)
+                  Text('${team['teamName']} · ${team['jobTypeName']}班组长'),
                 if (_error != null) Text(_error!),
                 if (_error == null && _teams.isEmpty)
-                  const Text('您尚未被设置为班组带工，请联系主管。'),
+                  const Text('您尚未被设置为班组长，请联系主管。'),
                 if (_teams.isNotEmpty && _items.isEmpty)
-                  const Text('本班组暂无待处理异常'),
+                  const Text('本班组负责工种暂无待处理异常'),
                 for (final item in _items)
                   Card(
                       child: ListTile(

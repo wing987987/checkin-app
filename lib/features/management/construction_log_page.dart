@@ -59,6 +59,9 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
   bool get _readOnly =>
       widget.logId != null || _record?['status'] == 'submitted';
   bool get _uploading => _preparing || _photos.any((p) => p.uploading);
+  bool get _canManageAttendance =>
+      context.read<AuthProvider>().isSupervisor ||
+      context.read<AuthProvider>().isBoss;
   String get _yesterday => DateFormat('yyyy-MM-dd')
       .format(DateTime.parse(_date!).subtract(const Duration(days: 1)));
   @override
@@ -323,7 +326,7 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
         stage = '添加水印';
         final result = await WatermarkUtils.addClockWatermark(bytes, [
           '施工日志 · ${widget.project.name}',
-          '主管：${user.realName ?? user.username}',
+          '填写人：${user.realName ?? user.username}',
           '日志日期：$_date',
           '${source == ImageSource.camera ? '拍摄后记录时间' : '导入时间'}：${DateFormat('yyyy-MM-dd HH:mm:ss').format(now)}',
           source == ImageSource.camera ? location : '来源：相册 · 拍摄时间和位置未核验',
@@ -447,7 +450,7 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
                       Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                              '提交主管：${_record?['supervisorName']}\n提交时间：${_record?['submittedTime']}\n已提交，不可修改',
+                              '提交人：${_record?['supervisorName']}\n提交时间：${_record?['submittedTime']}\n已提交，不可修改',
                               style: const TextStyle(
                                   color: AppColors.textSecondary,
                                   height: 1.6))),
@@ -587,6 +590,9 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
             if (_summaryError != null)
               Text(_summaryError!, style: const TextStyle(color: Colors.red)),
             if (_summary != null) ...[
+              if (_summary!['teamName'] != null)
+                Text(
+                    '班组：${_summary!['teamName']}${_summary!['jobTypeName'] == null ? '' : ' · ${_summary!['jobTypeName']}'}（仅负责范围内的考勤）'),
               const SizedBox(height: 12),
               LayoutBuilder(
                   builder: (context, constraints) =>
@@ -641,13 +647,16 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
               const SizedBox(height: 8),
               const Text('人数按人员去重；昨日考勤不代表今日施工人数。',
                   style: TextStyle(fontSize: 12, color: Colors.grey)),
-              if (!_readOnly && (_summary!['pendingCount'] as num? ?? 0) > 0)
+              if (_canManageAttendance &&
+                  !_readOnly &&
+                  (_summary!['pendingCount'] as num? ?? 0) > 0)
                 TextButton.icon(
                     onPressed:
                         _saving || _uploading ? null : () => _handleAnomalies(),
                     icon: const Icon(Icons.warning_amber),
                     label: const Text('处理昨日异常')),
-              if (!_readOnly &&
+              if (_canManageAttendance &&
+                  !_readOnly &&
                   (_summary!['noWorkPendingPeople'] as num? ?? 0) > 0)
                 TextButton.icon(
                     onPressed: _saving || _uploading

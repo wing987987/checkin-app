@@ -269,7 +269,7 @@ class _ConstructionLogExportPageState extends State<ConstructionLogExportPage>
                     Text(widget.project.name,
                         style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 10),
-                    Text('提交主管：${widget.supervisorName ?? '全部主管'}'),
+                    Text('提交人：${widget.supervisorName ?? '全部提交人'}'),
                     const SizedBox(height: 16),
                     OutlinedButton.icon(
                         onPressed: _submitting || _pending || _downloading

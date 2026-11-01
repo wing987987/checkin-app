@@ -18,9 +18,9 @@ class AnomalyReasonService {
       _list(DioClient.instance.get('/api/ck/foreman/teams'));
   static Future<List<Map<String, dynamic>>> foremen(int project) =>
       _list(DioClient.instance.get('/api/ck/projects/$project/foremen'));
-  static Future<void> setForeman(int team, int? worker) async {
-    await _data(DioClient.instance
-        .put('/api/ck/teams/$team/foreman', data: {'workerId': worker}));
+  static Future<void> setForeman(int team, int jobTypeId, int? worker) async {
+    await _data(DioClient.instance.put('/api/ck/teams/$team/foreman',
+        data: {'jobTypeId': jobTypeId, 'workerId': worker}));
   }
 
   static Future<List<AttendanceAnomaly>> anomalies(

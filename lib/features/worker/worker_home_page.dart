@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:camera/camera.dart';
 import 'worker_report_page.dart';
 import 'foreman_anomalies_page.dart';
+import 'foreman_construction_logs_page.dart';
 import '../../core/widgets/test_account_switcher.dart';
 import '../../core/models/api_result.dart';
 import '../../core/widgets/zoomable_network_image.dart';
@@ -103,9 +104,18 @@ class _WorkerHomePageState extends State<WorkerHomePage>
             title: const Text('今日打卡'),
             actions: [
               IconButton(
+                  tooltip: '班组长施工日志',
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ForemanConstructionLogsPage())),
+                  icon: const Icon(Icons.edit_document)),
+              IconButton(
                   tooltip: '班组异常原因',
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => const ForemanAnomaliesPage())),
+                  onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ForemanAnomaliesPage())),
                   icon: const Icon(Icons.groups_outlined)),
               const TestAccountSwitcher(),
               IconButton(

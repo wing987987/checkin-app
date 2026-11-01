@@ -131,10 +131,10 @@ class _ConstructionLogHistoryPageState
                         label: Text(_date ?? '全部日期')),
                     DropdownButton<int>(
                         value: _supervisor,
-                        hint: const Text('全部主管'),
+                        hint: const Text('全部提交人'),
                         items: [
                           const DropdownMenuItem<int>(
-                              value: null, child: Text('全部主管')),
+                              value: null, child: Text('全部提交人')),
                           ...supervisors.entries.map((e) => DropdownMenuItem(
                               value: e.key, child: Text(e.value)))
                         ],

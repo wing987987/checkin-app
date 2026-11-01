@@ -120,7 +120,7 @@ class _ReasonDialogState extends State<_ReasonDialog> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                  '${entry['authorName']} · ${entry['authorRole'] == 'worker' ? '班组带工' : entry['authorRole'] == 'boss' ? '老总' : '主管'} · ${entry['createdAt']}',
+                                  '${entry['authorName']} · ${entry['authorRole'] == 'worker' ? '班组长' : entry['authorRole'] == 'boss' ? '老总' : '主管'} · ${entry['createdAt']}',
                                   style: Theme.of(context).textTheme.bodySmall),
                               Text('${entry['reason']}'),
                             ])),
