@@ -592,7 +592,7 @@ class _ConstructionLogPageState extends State<ConstructionLogPage>
             if (_summary != null) ...[
               if (_summary!['teamName'] != null)
                 Text(
-                    '班组：${_summary!['teamName']}${_summary!['jobTypeName'] == null ? '' : ' · ${_summary!['jobTypeName']}'}（仅负责范围内的考勤）'),
+                    '班组：${_summary!['teamName']}${_summary!['jobTypeName'] == null ? '' : ' · 工种：${_summary!['jobTypeName']}'}（仅负责范围内的考勤）'),
               const SizedBox(height: 12),
               LayoutBuilder(
                   builder: (context, constraints) =>

@@ -165,10 +165,10 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                 title: const Text('按工种设置班组长'),
                 children: data
                     .map((team) => ListTile(
-                          title: Text(
-                              '${team['teamName']} · ${team['jobTypeName']}'),
-                          subtitle:
-                              Text('当前班组长：${team['workerName'] ?? '未设置'}'),
+                          title: Text('班组：${team['teamName']}'),
+                          subtitle: Text(
+                              '工种：${team['jobTypeName']}\n当前班组长：${team['workerName'] ?? '未设置'}'),
+                          isThreeLine: true,
                           trailing: const Icon(Icons.edit),
                           onTap: () async {
                             Navigator.pop(dialogContext);
@@ -182,9 +182,14 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
                             final selected = await showDialog<int>(
                                 context: context,
                                 builder: (ctx) => SimpleDialog(
-                                        title: Text(
-                                            '${team['teamName']} · ${team['jobTypeName']}班组长'),
+                                        title: const Text('选择班组长'),
                                         children: [
+                                          Padding(
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                      24, 0, 24, 12),
+                                              child: Text(
+                                                  '班组：${team['teamName']}\n工种：${team['jobTypeName']}')),
                                           SimpleDialogOption(
                                               onPressed: () =>
                                                   Navigator.pop(ctx, -1),

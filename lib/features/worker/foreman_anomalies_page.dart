@@ -55,7 +55,7 @@ class _ForemanAnomaliesPageState extends State<ForemanAnomaliesPage> {
             : ListView(padding: const EdgeInsets.all(16), children: [
                 const Text('班组长仅可填写本班组、负责工种的异常原因，由主管审批处理。'),
                 for (final team in _teams)
-                  Text('${team['teamName']} · ${team['jobTypeName']}班组长'),
+                  Text('班组：${team['teamName']} · 工种：${team['jobTypeName']}'),
                 if (_error != null) Text(_error!),
                 if (_error == null && _teams.isEmpty)
                   const Text('您尚未被设置为班组长，请联系主管。'),
