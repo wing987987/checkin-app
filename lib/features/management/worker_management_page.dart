@@ -163,67 +163,77 @@ class _WorkerManagementPageState extends State<WorkerManagementPage> {
           context: context,
           builder: (dialogContext) => SimpleDialog(
                 title: const Text('按工种设置班组长'),
-                children: data
-                    .map((team) => ListTile(
-                          title: Text('班组：${team['teamName']}'),
-                          subtitle: Text(
-                              '工种：${team['jobTypeName']}\n当前班组长：${team['workerName'] ?? '未设置'}'),
-                          isThreeLine: true,
-                          trailing: const Icon(Icons.edit),
-                          onTap: () async {
-                            Navigator.pop(dialogContext);
-                            final candidates = workers
-                                .where((w) =>
-                                    w.teamId == team['teamId'] &&
-                                    w.jobType == team['jobTypeName'] &&
-                                    w.role == 'worker' &&
-                                    w.status == 1)
-                                .toList();
-                            final selected = await showDialog<int>(
-                                context: context,
-                                builder: (ctx) => SimpleDialog(
-                                        title: const Text('选择班组长'),
-                                        children: [
-                                          Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      24, 0, 24, 12),
-                                              child: Text(
-                                                  '班组：${team['teamName']}\n工种：${team['jobTypeName']}')),
-                                          SimpleDialogOption(
-                                              onPressed: () =>
-                                                  Navigator.pop(ctx, -1),
-                                              child: const Text('取消班组长')),
-                                          for (final worker in candidates)
-                                            SimpleDialogOption(
-                                                onPressed: () => Navigator.pop(
-                                                    ctx, worker.workerId),
-                                                child: Text(
-                                                    worker.realName.isEmpty
-                                                        ? worker.username
-                                                        : worker.realName)),
-                                          if (candidates.isEmpty)
-                                            const Padding(
-                                                padding: EdgeInsets.all(16),
-                                                child: Text('暂无本班组、该工种的在用工人')),
-                                        ]));
-                            if (selected == null) return;
-                            try {
-                              await AnomalyReasonService.setForeman(
-                                  team['teamId'] as int,
-                                  team['jobTypeId'] as int,
-                                  selected == -1 ? null : selected);
-                              if (mounted)
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('班组长已更新')));
-                            } catch (e) {
-                              if (mounted)
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('设置失败：$e')));
-                            }
-                          },
-                        ))
-                    .toList(),
+                children: data.isEmpty
+                    ? const [
+                        Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 16),
+                            child: Text('暂无可设置的工种，请先为班组分配已设置工种的在用工人。'))
+                      ]
+                    : data
+                        .map((team) => ListTile(
+                              title: Text('班组：${team['teamName']}'),
+                              subtitle: Text(
+                                  '工种：${team['jobTypeName']}\n当前班组长：${team['workerName'] ?? '未设置'}'),
+                              isThreeLine: true,
+                              trailing: const Icon(Icons.edit),
+                              onTap: () async {
+                                Navigator.pop(dialogContext);
+                                final candidates = workers
+                                    .where((w) =>
+                                        w.teamId == team['teamId'] &&
+                                        w.jobType == team['jobTypeName'] &&
+                                        w.role == 'worker' &&
+                                        w.status == 1)
+                                    .toList();
+                                final selected = await showDialog<int>(
+                                    context: context,
+                                    builder: (ctx) => SimpleDialog(
+                                            title: const Text('选择班组长'),
+                                            children: [
+                                              Padding(
+                                                  padding:
+                                                      const EdgeInsets.fromLTRB(
+                                                          24, 0, 24, 12),
+                                                  child: Text(
+                                                      '班组：${team['teamName']}\n工种：${team['jobTypeName']}')),
+                                              SimpleDialogOption(
+                                                  onPressed: () =>
+                                                      Navigator.pop(ctx, -1),
+                                                  child: const Text('取消班组长')),
+                                              for (final worker in candidates)
+                                                SimpleDialogOption(
+                                                    onPressed: () =>
+                                                        Navigator.pop(ctx,
+                                                            worker.workerId),
+                                                    child: Text(
+                                                        worker.realName.isEmpty
+                                                            ? worker.username
+                                                            : worker.realName)),
+                                              if (candidates.isEmpty)
+                                                const Padding(
+                                                    padding: EdgeInsets.all(16),
+                                                    child:
+                                                        Text('暂无本班组、该工种的在用工人')),
+                                            ]));
+                                if (selected == null) return;
+                                try {
+                                  await AnomalyReasonService.setForeman(
+                                      team['teamId'] as int,
+                                      team['jobTypeId'] as int,
+                                      selected == -1 ? null : selected);
+                                  if (mounted)
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                            content: Text('班组长已更新')));
+                                } catch (e) {
+                                  if (mounted)
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('设置失败：$e')));
+                                }
+                              },
+                            ))
+                        .toList(),
               ));
     } catch (e) {
       if (mounted)
