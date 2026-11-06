@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/attendance_anomaly.dart';
 import '../../services/anomaly_reason_service.dart';
 import '../management/anomaly_reason_dialog.dart';
+import '../management/manual_overtime_page.dart';
 
 class ForemanAnomaliesPage extends StatefulWidget {
   const ForemanAnomaliesPage({super.key});
@@ -48,6 +49,8 @@ class _ForemanAnomaliesPageState extends State<ForemanAnomaliesPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('班组异常原因'), actions: [
+          IconButton(tooltip: '班组长加班申请', icon: const Icon(Icons.more_time),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManualOvertimePage()))),
           IconButton(onPressed: _load, icon: const Icon(Icons.refresh))
         ]),
         body: _loading

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../models/attendance_report.dart';
 import 'continuous_supplement_dialog.dart';
 import 'day_shift_correction_dialog.dart';
+import 'manual_overtime_page.dart';
 import '../../models/checkin_project.dart';
 import '../../core/widgets/zoomable_network_image.dart';
 import '../../services/management_service.dart';
@@ -83,6 +84,12 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                     fontSize: 12, fontWeight: FontWeight.normal)),
           ]),
           centerTitle: true,
+          actions: [IconButton(tooltip: '手填加班与审批', icon: const Icon(Icons.more_time), onPressed: () async {
+            await Navigator.push(context, MaterialPageRoute(builder: (_) => ManualOvertimePage(
+              projectId: widget.project.id, projectName: widget.project.name, date: selectedDate,
+            )));
+            if (mounted) await _load();
+          })],
         ),
         body: Column(children: [
           _header(),

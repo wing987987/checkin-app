@@ -575,7 +575,7 @@ class _WorkerHomePageState extends State<WorkerHomePage>
   }
 
   int _overtimeClockCount(MySchedule value) => value.records
-      .where((record) => record.checkpointCode.startsWith('overtime_'))
+      .where((record) => record.checkpointCode == 'overtime_start' || record.checkpointCode == 'overtime_end')
       .length;
 
   Future<void> _clock(
