@@ -1147,6 +1147,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
                             Wrap(spacing: 6, runSpacing: 6, children: [
                               _smallMetric('工时参考', _hours(day.workHours),
                                   AppColors.textSecondary),
+                              if (day.overtimeHours > 0)
+                                _smallMetric('加班', _hours(day.overtimeHours),
+                                    AppColors.warning),
                             ]),
                           ]),
                     ),
@@ -1238,8 +1241,9 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
   }
 
   String _hours(double value) {
-    final hours = value.floor();
-    final minutes = ((value - hours) * 60).round();
+    final totalMinutes = (value * 60).round();
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
     return minutes == 0 ? '$hours小时' : '$hours小时$minutes分钟';
   }
 
