@@ -290,7 +290,7 @@ class _WorkerHomePageState extends State<WorkerHomePage>
                                 '最后一次下班请在${value.shiftType == 'night' ? '次日12:00' : '当天24:00'}前打卡。超过标准下班每满30分钟计0.5小时，不满不计。',
                                 style: Theme.of(context).textTheme.bodySmall),
                             const SizedBox(height: 4),
-                            Text('持续工作到下班时直接打卡，无需另点加班开始。',
+                            Text('持续工作到下班时直接打卡，延时下班需填写加班原因。',
                                 style: Theme.of(context).textTheme.bodySmall),
                           ])),
                     ]),
@@ -575,8 +575,55 @@ class _WorkerHomePageState extends State<WorkerHomePage>
   }
 
   int _overtimeClockCount(MySchedule value) => value.records
-      .where((record) => record.checkpointCode == 'overtime_start' || record.checkpointCode == 'overtime_end')
+      .where((record) =>
+          record.checkpointCode == 'overtime_start' ||
+          record.checkpointCode == 'overtime_end')
       .length;
+
+  Future<String?> _askOvertimeReason() async {
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    try {
+      return await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('填写加班原因'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              autofocus: true,
+              minLines: 2,
+              maxLines: 4,
+              maxLength: 500,
+              decoration: const InputDecoration(
+                labelText: '加班原因（必填）',
+                hintText: '请说明延时工作的原因',
+              ),
+              validator: (value) =>
+                  value == null || value.trim().isEmpty ? '请填写加班原因' : null,
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.pop(ctx, controller.text.trim());
+                }
+              },
+              child: const Text('确认打卡'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      // Dispose after the closing dialog has finished its animation.
+      Future.delayed(const Duration(seconds: 1), controller.dispose);
+    }
+  }
 
   Future<void> _clock(
       {bool overtime = false, MySchedule? target, String? fieldAction}) async {
@@ -642,6 +689,12 @@ class _WorkerHomePageState extends State<WorkerHomePage>
           context, MaterialPageRoute(builder: (_) => const ClockCameraPage()));
       if (!mounted || photo == null) return;
       sourcePhoto = photo;
+      String? overtimeReason;
+      if (!overtime && value.requiresOvertimeReason(DateTime.now())) {
+        if (!mounted) return;
+        overtimeReason = await _askOvertimeReason();
+        if (overtimeReason == null) return;
+      }
       final now = DateTime.now();
       setState(() => clockingStatus = '正在添加水印…');
       final watermarked = await WatermarkUtils.addClockWatermark(
@@ -668,6 +721,7 @@ class _WorkerHomePageState extends State<WorkerHomePage>
         throw Exception(uploaded.message);
       }
       final payload = {
+        if (overtimeReason != null) 'overtimeReason': overtimeReason,
         if (value.fieldWork) 'fieldAction': fieldAction ?? 'start',
         if (value.fieldWork) 'attendanceDate': value.attendanceDate,
         'shiftId': value.shiftId,

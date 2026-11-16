@@ -1,4 +1,5 @@
 class AttendanceClockDetail {
+  final String overtimeReason;
   final int? recordId, checkpointId;
   final int expectedDayOffset;
   final String checkpointName, expectedTime, clockTime, originalTime;
@@ -6,6 +7,7 @@ class AttendanceClockDetail {
   final bool countable, corrected, hasPhoto, acknowledgedMissing;
 
   const AttendanceClockDetail({
+    this.overtimeReason = '',
     this.recordId,
     this.checkpointId,
     required this.expectedDayOffset,
@@ -25,6 +27,7 @@ class AttendanceClockDetail {
 
   factory AttendanceClockDetail.fromJson(Map<String, dynamic> j) =>
       AttendanceClockDetail(
+        overtimeReason: j['overtimeReason'] as String? ?? '',
         recordId: j['recordId'] as int?,
         checkpointId: j['checkpointId'] as int?,
         expectedDayOffset: j['expectedDayOffset'] as int? ?? 0,

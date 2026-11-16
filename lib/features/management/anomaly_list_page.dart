@@ -946,6 +946,8 @@ class _AnomalyListPageState extends State<AnomalyListPage> {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(clock.checkpointName),
+          if (clock.overtimeReason.isNotEmpty)
+            Text('加班原因：${clock.overtimeReason}'),
           Text(
               target
                   ? '当前待处理记录 · ${clock.anomalyMessage}'

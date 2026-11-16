@@ -149,6 +149,34 @@ class MySchedule {
       ? overtimeDeadline
       : expectedAt(point).add(Duration(minutes: isClockIn(point) ? 5 : 30));
 
+  bool requiresOvertimeReason(DateTime now) {
+    if (fieldWork) return false;
+    final remaining = checkpoints.where((point) => !records.any(
+        (r) => r.checkpointId == point.id || r.checkpointCode == point.code));
+    final available = remaining
+        .where((point) =>
+            !now.isBefore(windowStart(point)) &&
+            (isFinalClockOut(point)
+                ? now.isBefore(windowEnd(point))
+                : !now.isAfter(windowEnd(point))))
+        .toList();
+    final candidates = available.isNotEmpty
+        ? available
+        : allowOutsideClockWindow
+            ? remaining
+                .where((p) => !isFinalClockOut(p) || now.isBefore(windowEnd(p)))
+                .toList()
+            : <ScheduleCheckpoint>[];
+    candidates.sort((a, b) => expectedAt(a)
+        .difference(now)
+        .inSeconds
+        .abs()
+        .compareTo(expectedAt(b).difference(now).inSeconds.abs()));
+    return candidates.isNotEmpty &&
+        isFinalClockOut(candidates.first) &&
+        now.isAfter(expectedAt(candidates.first));
+  }
+
   bool canClockAt(DateTime now) =>
       !isPausedAt(now) &&
       checkpoints.any((point) =>

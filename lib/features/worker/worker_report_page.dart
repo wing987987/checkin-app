@@ -448,6 +448,9 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
                   icon: const Icon(Icons.photo_camera_outlined, color: _blue)),
           ]),
           const SizedBox(height: 3),
+          if (clock.overtimeReason.isNotEmpty)
+            Text('加班原因：${clock.overtimeReason}',
+                style: const TextStyle(fontSize: 12)),
           Text(_clockDescription(clock, inProgress),
               style: TextStyle(
                   color:
@@ -568,6 +571,9 @@ class _WorkerReportPageState extends State<WorkerReportPage> {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(clock.checkpointName),
+          if (clock.overtimeReason.isNotEmpty)
+            Text('加班原因：${clock.overtimeReason}',
+                style: const TextStyle(fontSize: 12)),
           if (clock.adjustmentAction.isNotEmpty)
             Text(
                 '${_adjustmentLabel(clock.adjustmentAction)}${clock.correctionReason.isEmpty ? '' : ' · 原因：${clock.correctionReason}'}',

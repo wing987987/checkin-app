@@ -33,6 +33,25 @@ MySchedule schedule(String type, String code,
     });
 
 void main() {
+  test('late final clock-out requires a reason, including under half an hour',
+      () {
+    final day = schedule('day', 'end');
+    expect(day.requiresOvertimeReason(DateTime(2026, 10, 20, 17)), isFalse);
+    expect(day.requiresOvertimeReason(DateTime(2026, 10, 20, 17, 1)), isTrue);
+    expect(day.requiresOvertimeReason(DateTime(2026, 10, 21)), isFalse);
+    expect(
+        schedule('day', 'end', done: true)
+            .requiresOvertimeReason(DateTime(2026, 10, 20, 19)),
+        isFalse);
+    expect(
+        schedule('day', 'morning_out')
+            .requiresOvertimeReason(DateTime(2026, 10, 20, 17, 10)),
+        isFalse);
+    expect(
+        schedule('night', 'end')
+            .requiresOvertimeReason(DateTime(2026, 10, 21, 6)),
+        isTrue);
+  });
   test('final day clock-out stays open until midnight, exclusive', () {
     for (final outside in [false, true]) {
       final s = schedule('day', 'afternoon_out', outside: outside);

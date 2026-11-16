@@ -508,6 +508,10 @@ class _ProjectReportPageState extends State<ProjectReportPage> {
         if (missing && day.status == 'in_progress')
           const Text('班次尚未结束，暂不能判定为缺卡',
               style: TextStyle(color: AppColors.primary, fontSize: 12)),
+        if (clock.overtimeReason.isNotEmpty)
+          Text('加班原因：${clock.overtimeReason}',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12)),
         if (clock.originalTime.isNotEmpty)
           Text('原始：${_dateTime(clock.originalTime)}',
               style: const TextStyle(color: AppColors.textSecondary)),
