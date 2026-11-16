@@ -33,11 +33,14 @@ MySchedule schedule(String type, String code,
     });
 
 void main() {
-  test('late final clock-out requires a reason, including under half an hour',
-      () {
+  test('late final clock-out requires a reason only from thirty minutes', () {
     final day = schedule('day', 'end');
     expect(day.requiresOvertimeReason(DateTime(2026, 10, 20, 17)), isFalse);
-    expect(day.requiresOvertimeReason(DateTime(2026, 10, 20, 17, 1)), isTrue);
+    expect(day.requiresOvertimeReason(DateTime(2026, 10, 20, 17, 1)), isFalse);
+    expect(day.requiresOvertimeReason(DateTime(2026, 10, 20, 17, 29, 59)),
+        isFalse);
+    expect(day.requiresOvertimeReason(DateTime(2026, 10, 20, 17, 30)), isTrue);
+    expect(day.requiresOvertimeReason(DateTime(2026, 10, 20, 17, 31)), isTrue);
     expect(day.requiresOvertimeReason(DateTime(2026, 10, 21)), isFalse);
     expect(
         schedule('day', 'end', done: true)

@@ -174,7 +174,8 @@ class MySchedule {
         .compareTo(expectedAt(b).difference(now).inSeconds.abs()));
     return candidates.isNotEmpty &&
         isFinalClockOut(candidates.first) &&
-        now.isAfter(expectedAt(candidates.first));
+        !now.isBefore(
+            expectedAt(candidates.first).add(const Duration(minutes: 30)));
   }
 
   bool canClockAt(DateTime now) =>

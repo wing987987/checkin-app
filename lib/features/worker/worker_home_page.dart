@@ -290,7 +290,7 @@ class _WorkerHomePageState extends State<WorkerHomePage>
                                 '最后一次下班请在${value.shiftType == 'night' ? '次日12:00' : '当天24:00'}前打卡。超过标准下班每满30分钟计0.5小时，不满不计。',
                                 style: Theme.of(context).textTheme.bodySmall),
                             const SizedBox(height: 4),
-                            Text('持续工作到下班时直接打卡，延时下班需填写加班原因。',
+                            Text('持续工作到下班时直接打卡，延时满30分钟需填写加班原因。',
                                 style: Theme.of(context).textTheme.bodySmall),
                           ])),
                     ]),
